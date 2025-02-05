@@ -1,0 +1,95 @@
+---
+- name: Manage AWS instance snapshot, updates, and verification
+  hosts: all
+  gather_facts: false
+  become: true
+  vars:
+    aws_region: "ap-southeast-2"
+    system_services_list:
+      - sshd
+      - rsyslog
+      - pcsd
+      - pacemaker
+      - corosync
+  tasks:
+
+  - name: Retrieve Instance ID from Metadata
+    ansible.builtin.uri:
+      url: http://169.254.169.254/latest/meta-data/instance-id
+      return_content: true
+    register: instance_metadata
+
+  - name: Set Instance ID as Fact
+    ansible.builtin.set_fact:
+      instance_id: "{{ instance_metadata.content }}"
+
+  - name: Retrieve Attached Volume ID(s)
+    amazon.aws.ec2_instance_info:
+      instance_ids: "{{ instance_id }}"
+      region: "{{ aws_region }}"
+    register: instance_info
+    delegate_to: localhost
+
+  - name: Create Snapshot of the Root Volume
+    amazon.aws.ec2_snapshot:
+      volume_id: "{{ item }}"
+      description: "Snapshot for volume {{ item }} of instance {{ instance_id }}"
+      region: "{{ aws_region }}"
+    loop: "{{ instance_info.instances[0].block_device_mappings | map(attribute='ebs.volume_id') | list }}"
+    delegate_to: localhost
+    register: snapshot_results
+
+  - name: Verify Snapshot Creation
+    ansible.builtin.debug:
+      msg: "Snapshot created successfully: {{ snapshot_results.results | map(attribute='snapshot_id') | list }}"
+
+  - name: Check File System Space
+    ansible.builtin.shell:
+      cmd: set -o pipefail && df -h | awk '{if ($6 != "/home" && NR > 1 && $5+0 > 95) {exit 1}}'
+      executable: /bin/bash
+    register: fs_check
+    failed_when: fs_check.rc != 0
+    changed_when: false
+
+  - name: Report Insufficient Space if Necessary
+    ansible.builtin.fail:
+      msg: "One or more file systems have less than 5% free space."
+    when: fs_check.failed
+
+  - name: Update Host Using DNF
+    ansible.builtin.dnf:
+      name: "*"
+      state: latest
+    async: 1000
+    poll: 0
+    register: dnf_update
+
+  - name: Check Sync Status
+    ansible.builtin.async_status:
+      jid: "{{ dnf_update.ansible_job_id }}"
+    register: job_result
+    until: job_result.finished
+    retries: 30
+
+  - name: Debug Status of the update
+    ansible.builtin.debug:
+      var: job_result.finished
+
+  - name: Reboot Server
+    ansible.builtin.reboot:
+      reboot_timeout: 300
+
+  - name: Verify sshd Service is Running
+    ansible.builtin.service_facts:
+
+  - name: Check each service status
+    ansible.builtin.assert:
+      that:
+        - ansible_facts.services[item + '.service'].state == 'running'
+      fail_msg: "{{ item }} service is not running!"
+      success_msg: "{{ item }} service is running."
+    loop: "{{ system_services_list }}"
+
+  - name: Report Update Success
+    ansible.builtin.debug:
+      msg: "Update was successful and sshd is running."

@@ -1,0 +1,89 @@
+- name: Recover AWS EC2 Root Volume from Snapshot
+  hosts: localhost
+  gather_facts: no
+  vars:
+    instance_id: "i-06f2ae9866ae9448b"
+    snapshot_id: "snap-03361b3b356be9b84"
+    aws_region: "ap-southeast-2"
+    device_name: "/dev/sda1"  # Confirm this matches your instance's root device!
+  tasks:
+
+    - name: Get instance details
+      amazon.aws.ec2_instance_info:
+        region: "{{ aws_region }}"
+        instance_ids: "{{ instance_id }}"
+      register: instance_info
+
+    - name: Extract Availability Zone
+      set_fact:
+        availability_zone: "{{ instance_info.instances[0].placement.availability_zone }}"
+
+    - name: Extract current root volume ID
+      set_fact:
+        old_root_volume_id: "{{ instance_info.instances[0].block_device_mappings | selectattr('device_name', 'equalto', device_name) | map(attribute='ebs.volume_id') | first }}"
+
+    - name: Stop the instance
+      amazon.aws.ec2_instance:
+        region: "{{ aws_region }}"
+        instance_ids: "{{ instance_id }}"
+        state: stopped
+
+    - name: Wait for instance to stop
+      amazon.aws.ec2_instance_info:
+        region: "{{ aws_region }}"
+        instance_ids: "{{ instance_id }}"
+      register: instance_status
+      until: instance_status.instances[0].state.name == "stopped"
+      retries: 10
+      delay: 10
+
+    - name: Create new volume from snapshot
+      amazon.aws.ec2_vol:
+        region: "{{ aws_region }}"
+        snapshot: "{{ snapshot_id }}"
+        availability_zone: "{{ availability_zone }}"
+        volume_type: "gp3"
+      register: new_volume
+
+    - name: Wait for new volume to be available
+      amazon.aws.ec2_vol_info:
+        region: "{{ aws_region }}"
+        filters: 
+          volume_id: "{{ new_volume.volume_id }}"
+      register: new_volume_status
+      until: new_volume_status.volumes[0].status == "available"
+      retries: 10
+      delay: 5
+
+    - name: Test
+      debug: 
+        var: new_volume_status
+
+    - name: Detach old root volume
+      amazon.aws.ec2_vol:
+        region: "{{ aws_region }}"
+        id: "{{ old_root_volume_id }}"
+        instance: "{{ instance_id }}"
+        state: absent
+
+    - name: Attach new volume
+      amazon.aws.ec2_vol:
+        region: "{{ aws_region }}"
+        instance: "{{ instance_id }}"
+        id: "{{ new_volume.volume_id }}"
+        device_name: "{{ device_name }}"
+
+    - name: Start the instance
+      amazon.aws.ec2_instance:
+        region: "{{ aws_region }}"
+        instance_ids: "{{ instance_id }}"
+        state: running
+
+    - name: Wait for instance to run
+      amazon.aws.ec2_instance_info:
+        region: "{{ aws_region }}"
+        instance_ids: "{{ instance_id }}"
+      register: instance_status
+      until: instance_status.instances[0].state.name == "running"
+      retries: 10
+      delay: 10

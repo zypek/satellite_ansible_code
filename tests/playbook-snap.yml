@@ -1,0 +1,64 @@
+---
+- name: Remove old snapshots for all volumes on this instance
+  hosts: all
+  gather_facts: true
+
+  vars:
+    # We'll compute one_week_ago for older-than logic
+    one_week_ago: "{{ lookup('pipe', 'date -u --date=\"1 week ago\" +%Y-%m-%dT%H:%M:%SZ') }}"
+
+  tasks:
+    ########################################################################
+    # 1) Get region & instance metadata from 169.254.169.254
+    ########################################################################
+    - name: Fetch instance identity document
+      ansible.builtin.uri:
+        url: "http://169.254.169.254/latest/dynamic/instance-identity/document"
+        return_content: true
+        method: GET
+      register: identity_doc
+
+    - name: Set region and instance_id
+      ansible.builtin.set_fact:
+        region: "{{ (identity_doc.content | from_json).region }}"
+        instance_id: "{{ (identity_doc.content | from_json).instanceId }}"
+
+    ########################################################################
+    # 2) Gather volume IDs attached to this instance
+    ########################################################################
+    - name: Gather instance info
+      amazon.aws.ec2_instance_info:
+        region: "{{ region }}"
+        instance_ids:
+          - "{{ instance_id }}"
+      register: instance_info
+      delegate_to: localhost
+
+    - name: Debug volume IDs
+      ansible.builtin.debug:
+        var: instance_info
+
+
+    - name: Extract volume IDs
+      ansible.builtin.set_fact:
+        volume_ids: >-
+          {{
+            instance_info.instances[0].block_device_mappings
+            | map(attribute='ebs.volume_id')
+            | list
+          }}
+
+    - name: Debug volume IDs
+      ansible.builtin.debug:
+        msg: "Found volumes: {{ volume_ids }} in region {{ region }}"
+
+    ########################################################################
+    # 3) Include tasks for each volume
+    ########################################################################
+    - name: Clean up snapshots for each volume
+      ansible.builtin.include_tasks: cleanup.yml
+      loop: "{{ volume_ids }}"
+      loop_control:
+        loop_var: my_volume
+      vars:
+        current_volume_id: "{{ my_volume }}"

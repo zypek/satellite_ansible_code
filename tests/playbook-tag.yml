@@ -1,0 +1,50 @@
+---
+- name: Manage AWS instance snapshot, updates, and verification
+  hosts: all
+  gather_facts: false
+  become: true
+  vars:
+    aws_region: "ap-southeast-2"
+    instance_id: "i-0c3d7acdf8ce008f1"
+    system_services_list:
+      - sshd
+      - rsyslog
+      - pcsd
+      - pacemaker
+      - corosync
+  tasks:
+  - name: Get current instance tags
+    amazon.aws.ec2_instance_info:
+      instance_ids: "{{ instance_id }}"
+      region: "{{ aws_region }}"
+    register: instance_info
+    delegate_to: localhost
+
+  - name: Extract tags starting with Server_update_ and build a dictionary
+    ansible.builtin.set_fact:
+      cleanup_tags: >-
+        {{ instance_info.instances[0].tags | dict2items
+           | selectattr('key', 'match', '^Server_update_')
+           | items2dict }}
+
+  - name: test
+    debug:
+      var: cleanup_tags
+
+  - name: Remove old Server_update_* tags
+    amazon.aws.ec2_tag:
+      resource: "{{ instance_id }}"
+      region: "{{ aws_region }}"
+      state: absent
+      tags: "{{ cleanup_tags }}"
+    delegate_to: localhost
+    when: cleanup_tags | length > 0
+#  - name: Remove old Server_update_* tags
+#    amazon.aws.ec2_tag:
+#      resource: "{{ instance_id }}"
+#      region: "{{ aws_region }}"
+#      state: absent
+#      tags: 
+#       Server_update_i-0c3d7acdf8ce008f1_1738566248: 'CV-Comp:11.0, CV-AWS:4.0, test:7.0, CV-Calyptia:1.0, CV-Microsoft:1.0'
+#    delegate_to: localhost
+

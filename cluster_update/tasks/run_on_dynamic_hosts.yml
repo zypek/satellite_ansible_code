@@ -1,0 +1,77 @@
+---
+- name: Verify connection to dynamically added servers
+  ansible.builtin.ping:
+  delegate_to: localhost
+
+- name: Generate timestamp for backup file
+  ansible.builtin.set_fact:
+    backup_file_timestamp: "{{ lookup('pipe', 'date +%Y%m%d_%H%M%S') }}"
+
+- name: Run pcs config backup with timestamped filename
+  ansible.builtin.command: "pcs config backup /tmp/pcs_backup_{{ backup_file_timestamp }}"
+  args:
+    creates: "/tmp/pcs_backup_{{ backup_file_timestamp }}"
+  run_once: true
+  delegate_to: "{{ item }}"
+  loop: "{{ groups['dynamic_slaves'] }}"
+
+- name: Show backup file name
+  ansible.builtin.debug:
+    msg: "Backup file created: /tmp/pcs_backup_{{ backup_file_timestamp }}"
+
+- name: Run pcs node standby
+  ansible.builtin.command: "pcs node standby {{ item }}"
+  register: cluster_node_standby
+  loop: "{{ groups['dynamic_slaves'] }}"
+
+- name: Pause for a while
+  ansible.builtin.pause:
+    seconds: 10
+
+- name: Check cluster nodes' standby status
+  ansible.builtin.command: pcs status nodes
+  register: pcs_status_output
+  changed_when: false
+
+- name: Extract the Standby line
+  ansible.builtin.set_fact:
+    standby_nodes: "{{ pcs_status_output.stdout_lines | select('search', 'Standby:') | first }}"
+  run_once: true
+
+- name: Verify if current node is in standby mode
+  ansible.builtin.set_fact:
+    is_in_standby: "{{ item in standby_nodes }}"
+  loop: "{{ groups['dynamic_slaves'] }}"
+
+- name: Fail if the current node is not in standby mode
+  ansible.builtin.fail:
+    msg: "{{ item }} is not in standby mode!"
+  when: not is_in_standby
+  loop: "{{ groups['dynamic_slaves'] }}"
+
+- name: Run pcs cluster stop
+  ansible.builtin.command: "pcs cluster stop {{ item }}"
+  register: cluster_node_stop
+  delegate_to: "{{ item }}"
+  loop: "{{ groups['dynamic_slaves'] }}"
+
+- name: Pause for a while
+  ansible.builtin.pause:
+    seconds: 10
+
+- name: Verify if Cluster Services are Stopped
+  ansible.builtin.service_facts:
+  delegate_to: "{{ item }}"
+  loop: "{{ groups['dynamic_slaves'] }}"
+
+- name: Check each service status
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services[item + '.service'].state == 'stopped'
+    fail_msg: "{{ item }} service is running!"
+    success_msg: "{{ item }} service is not running."
+  loop: "{{ system_services_list }}"
+
+- name: Report Update Success
+  ansible.builtin.debug:
+    msg: "Slave nodes are ready for the upgrade"

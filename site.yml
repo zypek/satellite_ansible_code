@@ -1,0 +1,21 @@
+---
+- name: Update RHEL Servers
+  hosts: all
+  become: true
+  roles:
+    - role: server_update
+      tags:
+        - server_update
+    - role: snapshot_cleanup
+      tags:
+        - snapshot_cleanup
+    - role: cluster_update
+      tags:
+        - cluster_update
+- name: Restore Server from the Snapshot
+  hosts: localhost
+  gather_facts: false
+  roles:
+    - role: server_restore
+      tags:
+        - server_restore

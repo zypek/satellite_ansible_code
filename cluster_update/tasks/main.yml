@@ -1,0 +1,63 @@
+---
+- name: Include role variables
+  ansible.builtin.include_vars: "vars/all.yml"
+
+- name: Gather service facts
+  ansible.builtin.service_facts:
+
+- name: Verify if Cluster Services are Running
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services[item + '.service'].state == 'running'
+    fail_msg: "{{ item }} service is not running!"
+    success_msg: "{{ item }} service is running."
+  loop: "{{ ha_system_services_list }}"
+
+- name: Report Update Success
+  ansible.builtin.debug:
+    msg: "Update was successful and cluster services are running."
+
+- name: Verify the status of the cluster nodes
+  ansible.builtin.command: crm_node -l
+  register: cluster_node_status
+  run_once: true
+
+- name: Extract node status
+  ansible.builtin.set_fact:
+    lost_nodes: "{{ cluster_node_status.stdout_lines | select('search', 'lost') | list }}"
+
+- name: Fail if any node is lost
+  ansible.builtin.assert:
+    that:
+      - lost_nodes | length == 0
+    fail_msg: "Some nodes are in 'lost' state"
+    success_msg: "All nodes are in a healthy 'member' state."
+
+- name: Verify Status of the fencing resource
+  ansible.builtin.command: pcs resource status "{{ fence_resource_name }}"
+  register: fence_rs_status
+
+- name: Fail if Fence Resource failed
+  ansible.builtin.assert:
+    that:
+      - "'Started' in fence_rs_status.stdout"
+    fail_msg: "Fencing resource failed"
+    success_msg: "Fencing resource Started. Proceeding to other checks"
+
+- name: Verify Status of the HANA resources
+  ansible.builtin.command: pcs resource status "{{ hana_pcs_resource }}"
+  register: fence_hana_status
+
+- name: Extract Master and Slave server names from fence_hana_status output
+  ansible.builtin.set_fact:
+    master_server: "{{ fence_hana_status.stdout | regex_search('(?<=\\* Masters: \\[ )(.*?)(?= \\])', '\\1') | first }}"
+    slave_servers: "{{ (fence_hana_status.stdout | regex_search('(?<=\\* Slaves: \\[ )([^\\]]+)', '\\1') | first | default('')) | split(' ') | select('!=', '') | list }}"
+
+- name: Add Slave servers to ad-hoc inventory
+  ansible.builtin.add_host:
+    name: "{{ item }}"
+    groups: dynamic_slaves
+  loop: "{{ slave_servers }}"
+
+- name: Include tasks for dynamic hosts
+  ansible.builtin.include_tasks: run_on_dynamic_hosts.yml

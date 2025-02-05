@@ -1,0 +1,25 @@
+---
+one_week_ago: "{{ lookup('pipe', 'date -u --date=\"1 week ago\" +%Y-%m-%dT%H:%M:%SZ') }}"
+aws_region: "ap-southeast-2"
+system_services_list:
+  - sshd
+  - rsyslog
+  - pcsd
+  - pacemaker
+  - corosync
+satellite_deployment_organization: 'RedHat'
+satellite_deployment_admin_username: 'admin'
+satellite_deployment_admin_password: redhat123
+satellite_lifecycle: [NonProd, PreProd, Prod]
+satellite_content_view: CV-Comp
+satellite_deployment_server: "https://rhsatellite.example.org"
+fence_resource_name: "fence_resource"
+hana_pcs_resource: "sap_hana-clone"
+ha_system_services_list:
+      - pcsd
+      - pacemaker
+      - corosync
+system_services_list:
+      - pacemaker
+      - corosync
+instance_id: "i-06f2ae9866ae9448b"  # Replace with your instance ID

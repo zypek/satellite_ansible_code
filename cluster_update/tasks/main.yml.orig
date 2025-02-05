@@ -1,0 +1,186 @@
+---
+- name: Include role variables
+  ansible.builtin.include_vars: "vars/all.yml"
+
+- name: Verify if Cluster Services are Running
+  ansible.builtin.service_facts:
+
+- name: Check each service status
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services[item + '.service'].state == 'running'
+    fail_msg: "{{ item }} service is not running!"
+    success_msg: "{{ item }} service is running."
+  loop: "{{ ha_system_services_list }}"
+
+- name: Report Update Success
+  ansible.builtin.debug:
+    msg: "Update was successful and sshd is running."
+
+- name: Verify the status of the cluster nodes
+  ansible.builtin.command: crm_node -l
+  register: cluster_node_status
+  run_once: true
+ 
+- name: Check
+  ansible.builtin.debug:
+    var: cluster_node_status
+ 
+- name: Extract node status
+  ansible.builtin.set_fact:
+    lost_nodes: "{{ cluster_node_status.stdout_lines | select('search', 'lost') | list }}"
+
+- name: Fail if any node is lost
+  ansible.builtin.assert:
+    that:
+      - lost_nodes | length == 0
+    fail_msg: "Some nodes are in 'lost' state"
+    success_msg: "All nodes are in a healthy 'member' state."
+ 
+- name: Verify Status of the fencing resource
+  ansible.builtin.command: pcs resource status "{{ fence_resource_name }}"
+  register: fence_rs_status
+
+- name: Check
+  ansible.builtin.debug:
+    var: fence_rs_status.stdout
+
+- name: Fail if Fence Resource failed
+  ansible.builtin.assert:
+    that:
+      - "'Started' in fence_rs_status.stdout"
+    fail_msg: "Fencing resource failed"
+    success_msg: "Fencing resource Started. Proceeding to other checks"
+
+- name: Verify Status of the fencing resources
+  ansible.builtin.command: pcs resource status "{{ fence_resource_name }}"
+  register: fence_rs_status
+
+- name: Check
+  ansible.builtin.debug:
+    var: fence_rs_status.stdout
+
+- name: Verify Status of the HANA resources
+  ansible.builtin.command: pcs resource status "{{ hana_pcs_resource }}"
+  register: fence_hana_status
+
+- name: Check
+  ansible.builtin.debug:
+    var: fence_hana_status.stdout
+
+- name: Extract Master and Slave server names from fence_hana_status output
+  ansible.builtin.set_fact:
+    master_server: "{{ fence_hana_status.stdout | regex_search('(?<=\\* Masters: \\[ )(.*?)(?= \\])', '\\1') | first }}"
+    slave_servers: "{{ (fence_hana_status.stdout | regex_search('(?<=\\* Slaves: \\[ )([^\\]]+)', '\\1') | first | default('')) | split(' ') | select('!=', '') | list }}"
+
+- name: Check
+  ansible.builtin.debug:
+    var: master_server
+
+- name: Check
+  ansible.builtin.debug:
+    var: slave_servers
+
+- name: Add Slave servers to ad-hoc inventory
+  ansible.builtin.add_host:
+    name: "{{ item }}"
+    groups: dynamic_slaves
+  loop: "{{ slave_servers }}"
+
+- name: Adding Slave Hosts to dynamic inventory
+  hosts: dynamic_slaves
+  become: true
+  gather_facts: true
+  vars:
+    system_services_list:
+      - pacemaker
+      - corosync
+  tasks:
+  - name: Verify connection to dynamically added servers
+    ansible.builtin.ping:
+    delegate_to: localhost
+
+  - name: Show
+    ansible.builtin.debug:
+      var: inventory_hostname
+
+  - name: Generate timestamp for backup file
+    ansible.builtin.set_fact:
+      backup_file_timestamp: "{{ lookup('pipe', 'date +%Y%m%d_%H%M%S') }}"
+
+  - name: Run pcs config backup with timestamped filename
+    ansible.builtin.command: "pcs config backup /tmp/pcs_backup_{{ backup_file_timestamp }}.tar.gz"
+    args:
+      creates: "/tmp/pcs_backup_{{ backup_file_timestamp }}.tar.gz"
+    run_once: true
+
+  - name: Show backup file name
+    ansible.builtin.debug:
+      msg: "Backup file created: /tmp/pcs_backup_{{ backup_file_timestamp }}.tar.gz"
+
+  - name: Run pcs node standby
+    ansible.builtin.command: "pcs node standby {{ inventory_hostname }}"
+    register: cluster_node_standby
+
+  - name: Pause for a while
+    ansible.builtin.pause:
+      seconds: 10
+
+  - name: Show
+    ansible.builtin.debug:
+      var: cluster_node_standby
+
+  - name: Check cluster nodes' standby status
+    ansible.builtin.command: pcs status nodes
+    register: pcs_status_output
+    changed_when: false
+
+  - name: Extract the Standby line
+    ansible.builtin.set_fact:
+      standby_nodes: "{{ pcs_status_output.stdout_lines | select('search', 'Standby:') | first }}"
+    run_once: true
+
+  - name: Debug the extracted standby line
+    ansible.builtin.debug:
+      msg: "{{ standby_nodes }}"
+
+  - name: Verify if current node is in standby mode
+    ansible.builtin.set_fact:
+      is_in_standby: "{{ inventory_hostname in standby_nodes }}"
+
+  - name: Debug standby check result
+    ansible.builtin.debug:
+      msg: "{{ inventory_hostname }} is in standby mode: {{ is_in_standby }}"
+
+  - name: Fail if the current node is not in standby mode
+    ansible.builtin.fail:
+      msg: "{{ inventory_hostname }} is not in standby mode!"
+    when: not is_in_standby
+
+  - name: Run pcs cluster stop
+    ansible.builtin.command: "pcs cluster stop {{ inventory_hostname }}"
+    register: cluster_node_stop
+
+  - name: Pause for a while
+    ansible.builtin.pause:
+      seconds: 10
+
+  - name: Show
+    ansible.builtin.debug:
+      var: cluster_node_stop
+
+  - name: Verify if Cluster Services are Running
+    ansible.builtin.service_facts:
+
+  - name: Check each service status
+    ansible.builtin.assert:
+      that:
+        - ansible_facts.services[item + '.service'].state == 'stopped'
+      fail_msg: "{{ item }} service is running!"
+      success_msg: "{{ item }} service is not running."
+    loop: "{{ system_services_list }}"
+
+  - name: Report Update Success
+    ansible.builtin.debug:
+      msg: "Slave nodes are ready for the upgrade"
+
