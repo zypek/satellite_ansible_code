@@ -151,6 +151,3 @@ ansible-playbook -i inventory site.yml --tags server_update
     - **Purpose:** Cleans up outdated update tags from the instance.
 
 ---
-
-This detailed description outlines the flow of the playbook and explains the purpose of each task and variable. The steps range from initial variable loading and metadata retrieval to system updates, service verification, and the tagging process for update events.
-
