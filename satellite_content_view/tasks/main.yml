@@ -1,0 +1,13 @@
+---
+- name: Include role variables
+  ansible.builtin.include_vars: "vars/all.yml"
+
+- name: "Publish and Promote {{ satellite_content_view }} for {{ satellite_deployment_server.split('/')[2] }}"
+  theforeman.foreman.content_view_version:
+    username: "{{ satellite_deployment_admin_username }}"
+    password: "{{ satellite_deployment_admin_password }}"
+    server_url: "{{ satellite_deployment_server }}"
+    content_view: "{{ satellite_content_view }}"
+    organization: "{{ satellite_deployment_organization }}"
+    validate_certs: false
+    lifecycle_environments: "{{ satellite_lifecycle }}"

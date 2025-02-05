@@ -12,6 +12,13 @@
     - role: cluster_update
       tags:
         - cluster_update
+    - role: satellite_register
+      tags:
+        - satellite_register
+    - role: satellite_upload
+      tags:
+        - satellite_upload
+
 - name: Restore Server from the Snapshot
   hosts: localhost
   gather_facts: false
@@ -19,3 +26,12 @@
     - role: server_restore
       tags:
         - server_restore
+    - role: satellite_content_view
+      tags: 
+        - satellite_content_view
+    - role: content_view_version_cleanup
+      tags: 
+        - satellite_content_cleanup
+    - role: content_view_errata
+      tags: 
+        - content_view_errata

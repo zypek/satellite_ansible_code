@@ -1,0 +1,30 @@
+---
+- name: Include role variables
+  ansible.builtin.include_vars: "vars/all.yml"
+
+- name: Download "{{ package_name }} to {{ package_tmp }}"
+  ansible.builtin.get_url:
+    url: "{{ package_url }}"
+    dest: "{{ package_tmp }}/{{ package_name }}"
+    mode: "0644"
+
+- name: Upload AWS CLI ZIP to Satellite file-based repository
+  theforeman.foreman.content_upload:
+    username: "{{ satellite_deployment_admin_username }}"
+    password: "{{ satellite_deployment_admin_password }}"
+    server_url: "{{ satellite_deployment_server }}"
+    src: "{{ package_tmp }}/{{ package_name }}"
+    product: "{{ satellite_product }}"
+    repository: "{{ satellite_repository }}"
+    organization: "{{ satellite_deployment_organization }}"
+    validate_certs: false   # set to true if using valid certs
+
+- name: Show result
+  ansible.builtin.debug:
+    msg: "Upload to {{ satellite_repository }} completed successfully."
+
+
+- name: Delete temporary file "{{ package_name }}"
+  ansible.builtin.file:
+    path: "{{ package_tmp }}/{{ package_name }}"
+    state: absent

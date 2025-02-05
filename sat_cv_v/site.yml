@@ -1,0 +1,19 @@
+---
+- name: Manage Content Views on Satellite
+  hosts: localhost
+  vars:
+    satellite_deployment_organization: 'RedHat'
+    satellite_deployment_admin_username: 'admin'
+    satellite_deployment_admin_password: redhat123
+    satellite_lifecycle: [NonProd, PreProd, Prod]
+    satellite_content_view: test
+    satellite_deployment_server: "https://rhsatellite.example.org"
+    satellite_content_view_version_cleanup_keep: 0
+    errata_end_date: "2025-01-15"
+  roles:
+    - role: satellite-content-view
+      tags: satellite-content-view
+    - role: content_view_version_cleanup
+      tags: satellite-content-cleanup
+    - role: content_view_errata
+      tags: content_view_errata
