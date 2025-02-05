@@ -10,7 +10,6 @@ ansible-playbook -i inventory site.yml --tags server_update
 ```
 ## Variables
 
-```
 - **aws_region**: Specifies the AWS region where operations are performed. In this case, it's set to `"ap-southeast-2"`.
 
 - **system_services_list**:  A list of critical system services that should be checked and verified as running after updates. The list should include the services we want to verify after the update of the server.
@@ -25,8 +24,6 @@ ansible-playbook -i inventory site.yml --tags server_update
 - **satellite_deployment_admin_username**: The administrator username for accessing Satellite API. This user has to have a specific Satellite role, which provides API access.
 
 - **satellite_deployment_admin_password**: The password for the Satellite API account. In this example, it is set to `redhat123`.
-
-```
 
 ## Detailed Description
 
