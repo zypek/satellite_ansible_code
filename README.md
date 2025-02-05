@@ -3,6 +3,15 @@
 
 This playbook is designed to manage updates on a RHEL server by performing tasks such as retrieving metadata, creating snapshots of attached volumes, checking filesystem space, updating packages, rebooting the server, verifying critical services, querying Satellite for content view information, and finally tagging the instance with update details. It also cleans up old update tags. The playbook utilises various Ansible modules as well as AWS and Foreman modules to accomplish these tasks.
 
+## Execution Example: 
+
+```
+ansible-playbook -i inventory site.yml --tags server_update
+```
+## Variables
+
+
+
 ## Detailed Description
 
 1. **Include Role Variables**  
