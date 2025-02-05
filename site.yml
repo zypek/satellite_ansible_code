@@ -27,11 +27,11 @@
       tags:
         - server_restore
     - role: satellite_content_view
-      tags: 
+      tags:
         - satellite_content_view
     - role: content_view_version_cleanup
-      tags: 
+      tags:
         - satellite_content_cleanup
     - role: content_view_errata
-      tags: 
+      tags:
         - content_view_errata
