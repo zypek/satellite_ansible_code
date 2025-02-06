@@ -1,4 +1,4 @@
-# **Role server_update**
+**Role server_update**
 ## Overview
 
 This playbook is designed to manage updates on a RHEL server by performing tasks such as retrieving metadata, creating snapshots of attached volumes, checking filesystem space, updating packages, rebooting the server, verifying critical services, querying Satellite for content view information, and finally tagging the instance with update details. It also cleans up old update tags. The playbook utilises various Ansible modules as well as AWS and Foreman modules to accomplish these tasks.
@@ -157,7 +157,7 @@ ansible-playbook -i inventory site.yml --tags server_update
 This documentation describes an Ansible-based approach for managing and verifying critical cluster services in a High Availability (HA) environment. Tasks include checking the status of cluster services and nodes, ensuring fencing and HANA resources are functional, dynamically discovering slave nodes, and performing updates or maintenance.
 
 ---
-# **Role cluster_update**
+**Role cluster_update**
 ## Overview
 
 ## Table of Contents
@@ -271,7 +271,7 @@ Reports that the slave nodes are now ready for upgrade or further maintenance st
 3. **Validate**: The playbook will fail early if any critical checks (e.g., lost nodes, fencing failures) are encountered, ensuring safe and reliable cluster operations.
 
 ---
-# **Role server_update**
+**Role server_update**
 
 # Satellite Registration Documentation
 
@@ -453,7 +453,7 @@ Prints a debug message summarising the successful restore operation, including t
 - The tasks dynamically determine the region if it wasn’t provided, allowing you to reuse the same code in different environments.
 
 ---
-# **Role snapshot_cleanup
+**Role snapshot_cleanup
 
 # Snapshot Cleanup Documentation
 
