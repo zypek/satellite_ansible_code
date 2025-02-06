@@ -368,14 +368,179 @@ Queries the Satellite again to confirm that the host is now successfully registe
 
 ---
 
-## Contributing
+# Server Restore Documentation
 
-If you have improvements or wish to add features (e.g., enhanced validations or multi-org handling), please submit a pull request or open an issue. Follow the coding guidelines provided in the repository.
+This documentation outlines the process for **restoring an Amazon EC2 instance** to its latest snapshot. The workflow dynamically discovers the instance’s AWS region and root volume, identifies the most recent snapshot, and replaces the current root volume with one created from that snapshot.
 
 ---
 
-## License
+## Table of Contents
 
-This project is distributed under the [MIT License](LICENSE). See the `LICENSE` file for more information.
+1. [Overview](#overview)  
+2. [Key Steps](#key-steps)  
+   - [Include Role Variables](#include-role-variables)  
+   - [Get Instance Details](#get-instance-details)  
+   - [Extract Dynamic Facts](#extract-dynamic-facts)  
+   - [Find the Latest Snapshot](#find-the-latest-snapshot)  
+   - [Stop and Replace the Volume](#stop-and-replace-the-volume)  
+   - [Start Instance](#start-instance)  
+   - [Final Status](#final-status)  
+3. [Usage](#usage)  
+4. [Notes](#notes)  
+5. [Contributing](#contributing)  
+6. [License](#license)
 
+---
 
+## Overview
+
+This set of tasks automates restoring an EC2 instance by:
+
+1. Dynamically retrieving instance metadata (including its region and device names).  
+2. Locating and selecting the **latest** completed snapshot for the root volume.  
+3. Stopping the instance, creating a new volume from the snapshot, and attaching that volume as the new root.  
+4. Restarting the instance to verify successful recovery.
+
+---
+
+## Key Steps
+
+### Include Role Variables
+Loads necessary variables (credentials, default regions, etc.) from a `vars` file. These variables provide details like the default AWS region if it’s not inferred from the instance.
+
+### Get Instance Details
+Retrieves metadata about the target instance, such as its availability zone, current state, and attached block devices.
+
+### Extract Dynamic Facts
+1. **Availability Zone**: Used to determine where new volumes should be created.  
+2. **AWS Region**: Derived by removing the last letter from the AZ. For example, if the AZ is `us-east-1a`, the region is `us-east-1`.  
+3. **Root Device Name**: Identifies which block device is the root volume.  
+4. **Old Root Volume ID**: Extracted by matching the device name in the instance’s block device mappings.
+
+### Find the Latest Snapshot
+Queries AWS for snapshots of the old root volume.  
+- If none exist, the playbook fails immediately.  
+- If they do exist, it sorts them by start time and selects the most recent snapshot.
+
+### Stop and Replace the Volume
+1. **Stop the Instance**: Ensures it’s safe to detach the volume.  
+2. **Wait for Stop**: Polls until the instance is confirmed stopped.  
+3. **Create a New Volume** from the snapshot in the same AZ.  
+4. **Wait for the Volume to Become Available**: Ensures the volume is fully provisioned before attaching.  
+5. **Detach the Old Root Volume**: Removes the existing volume from the instance.  
+6. **Attach the New Volume**: Mounts the newly created volume on the same device name (`/dev/sda1` or `/dev/xvda`, depending on the instance).
+
+### Start Instance
+Begins running the instance again, now using the restored volume. A wait ensures the instance is fully running before proceeding.
+
+### Final Status
+Prints a debug message summarising the successful restore operation, including the new volume ID and snapshot used.
+
+---
+
+## Usage
+
+1. **Define Your Variables**: Make sure `instance_id`, `aws_region` (if necessary), or any required credentials are set.  
+2. **Run the Tasks**: Incorporate this set of tasks into your Ansible playbook or role. The role will stop, restore, and restart the instance automatically.  
+3. **Validate**: Confirm in the AWS console or via the Ansible output that the instance is running from the new volume and that the state is `running`.
+
+---
+
+## Notes
+
+- This process **overwrites** the current root volume. Ensure you understand the implications of using the **latest** snapshot.
+- If your instance has multiple volumes (data volumes, etc.), this workflow focuses only on the **root** volume restore.
+- The tasks dynamically determine the region if it wasn’t provided, allowing you to reuse the same code in different environments.
+
+---
+# **Role snapshot_cleanup
+
+# Snapshot Cleanup Documentation
+
+This documentation describes an Ansible-based workflow that retrieves an instance’s region and volume metadata from the AWS instance metadata service, gathers associated EBS volume IDs, and then cleans up old snapshots while preserving the most recent ones. It also demonstrates how to handle a specific “newest old snapshot” for retention alongside the latest snapshot overall.
+
+---
+
+## Table of Contents
+
+1. [Overview](#overview)  
+2. [Key Steps](#key-steps)  
+    - [Import Variables](#import-variables)  
+    - [Fetch Instance Identity Document](#fetch-instance-identity-document)  
+    - [Gather Volume Information](#gather-volume-information)  
+    - [Include Snapshot Cleanup Tasks](#include-snapshot-cleanup-tasks)  
+    - [Determine Snapshots to Delete](#determine-snapshots-to-delete)  
+    - [Delete Old Snapshots](#delete-old-snapshots)  
+3. [Usage](#usage)  
+4. [Notes on Snapshot Retention](#notes-on-snapshot-retention)  
+5. [Contributing](#contributing)  
+6. [License](#license)
+
+---
+
+## Overview
+
+This collection of tasks automates the process of:
+
+- **Detecting** your AWS region and EC2 instance ID from the instance metadata service.  
+- **Retrieving** information on all volumes attached to the instance.  
+- **Locating** existing snapshots for each volume and determining which are the oldest.  
+- **Preserving** the latest snapshot and one “newest old snapshot” (the most recent among the older snapshots).  
+- **Deleting** all other snapshots to free up resources and control snapshot sprawl.
+
+---
+
+## Key Steps
+
+### Import Variables
+Loads role-wide or playbook-wide variables from a file (e.g., credentials, default region settings, or other custom settings).
+
+### Fetch Instance Identity Document
+Queries the instance metadata service at `169.254.169.254` to obtain essential information, including the AWS region and the instance ID. This step is necessary for self-discovery, so the tasks can run on any EC2 instance without requiring hardcoded region or instance details.
+
+### Gather Volume Information
+Retrieves metadata about the volumes attached to the instance:
+1. Identifies all block device mappings for the instance.  
+2. Extracts the corresponding **volume IDs**.  
+3. Displays a debug message listing the discovered volumes.
+
+### Include Snapshot Cleanup Tasks
+For each discovered volume, a separate set of tasks (in `snapshot_cleanup.yml`) runs, retrieving and filtering snapshots.
+
+### Determine Snapshots to Delete
+1. **Collect all snapshots** associated with the current volume.  
+2. Identify snapshots **older than one week**.  
+3. Determine the **latest snapshot overall** (completely up to date).  
+4. Identify the **newest among the old snapshots** (kept for additional fallback).  
+5. **Build a removal list** by excluding these two snapshots (the very latest and the newest old one) from the full set.
+
+### Delete Old Snapshots
+Removes all snapshots in the `remove_list`. This helps clean up stale snapshots and control costs without losing essential recovery points.
+
+---
+
+## Usage
+
+1. **Prepare Your Environment**:  
+   - Ensure you have proper AWS credentials or an IAM role assigned to the instance for snapshot deletion.  
+   - Make sure `vars/all.yml` (or your chosen variable file) includes any needed configurations.
+
+2. **Run the Playbook**:  
+   - From your Ansible control node (or within the instance itself if using a local play), run the main playbook that includes these tasks.  
+   - The tasks will dynamically discover region, instance ID, and attached volumes.
+
+3. **Confirm Snapshot Deletion**:  
+   - Check the resulting logs or debug messages.  
+   - Optionally, verify in the AWS console that the old snapshots have indeed been removed while the latest snapshot and the newest old snapshot remain intact.
+
+---
+
+## Notes on Snapshot Retention
+
+- This workflow **retains** two snapshots per volume:  
+  1. The **latest snapshot** for up-to-date recovery.  
+  2. The **newest of the old snapshots**, offering one additional fallback in case you need a slightly older restore point.  
+- You can adjust the **time window** (one week) by modifying the logic that calculates `one_week_ago`.  
+- Deletion logic uses `ec2_snapshot` with `state: absent`, so once deleted, snapshots **cannot** be recovered unless you have additional copies.
+
+---
