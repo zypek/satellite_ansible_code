@@ -271,4 +271,111 @@ Reports that the slave nodes are now ready for upgrade or further maintenance st
 3. **Validate**: The playbook will fail early if any critical checks (e.g., lost nodes, fencing failures) are encountered, ensuring safe and reliable cluster operations.
 
 ---
+# **Role server_update**
+
+# Satellite Registration Documentation
+
+This documentation describes an Ansible workflow for registering a host to a Red Hat Satellite (or Foreman) server. The workflow checks whether the host is already registered, cleans up any pre-existing repositories if necessary, installs the Katello CA, and then registers the system using an activation key.
+
+---
+
+## Table of Contents
+
+1. [Overview](#overview)
+2. [Key Steps](#key-steps)
+    - [Include Role Variables](#include-role-variables)
+    - [Check Existing Host Registration](#check-existing-host-registration)
+    - [Cleanup Unneeded Files](#cleanup-unneeded-files)
+    - [Configure Subscription Manager](#configure-subscription-manager)
+    - [Install Katello CA](#install-katello-ca)
+    - [Register System to Satellite](#register-system-to-satellite)
+    - [Verify Registration](#verify-registration)
+3. [Usage](#usage)
+4. [Important Variables](#important-variables)
+5. [Notes](#notes)
+6. [Contributing](#contributing)
+7. [License](#license)
+
+---
+
+## Overview
+
+This set of tasks performs the following actions:
+1. Verifies if the host is already registered to the Satellite server.
+2. Removes unwanted local YUM repository files if the host is not registered.
+3. Configures the `subscription-manager` to handle repositories.
+4. Installs the Katello CA package to secure communication with the Satellite.
+5. Registers the system using an activation key.
+6. Validates successful registration through the Satellite API.
+
+---
+
+## Key Steps
+
+### Include Role Variables
+Loads all necessary variables, including credentials and server details, from a shared file (`vars/all.yml`).
+
+### Check Existing Host Registration
+Queries the Satellite server to determine whether the current host is already registered.  
+- **Outcome**:  
+  - If the host **is** registered, tasks that handle local repository cleanup will be skipped.  
+  - If the host **is not** registered, subsequent tasks perform cleanup and registration steps.
+
+### Cleanup Unneeded Files
+When the host is not registered, finds any files in a specified local YUM repository directory and removes them. This ensures that no conflicting repository configurations remain before the new registration.
+
+### Configure Subscription Manager
+Enables the `subscription-manager` to handle yum repositories (`rhsm.manage_repos=1`). This step allows the system to properly receive content and subscriptions from Satellite.
+
+### Install Katello CA
+Installs the Katello CA package from the Satellite (or Capsule) server, with SSL verification disabled. This is necessary so the client trusts the server’s certificate when registering.
+
+### Register System to Satellite
+Uses the activation key and organization ID to register the system via `subscription-manager`. The registration is **forced** to ensure re-registration if needed.
+
+### Verify Registration
+Queries the Satellite again to confirm that the host is now successfully registered. If no host record is found, the play fails. Otherwise, it reports a successful registration.
+
+---
+
+## Usage
+
+1. **Set or Review Variables**:  
+   - `satellite_deployment_server`, `satellite_deployment_admin_username`, and other variables must be properly defined in `vars/all.yml`.
+2. **Run the Playbook**:  
+   Execute the relevant Ansible playbook that includes these tasks. The playbook automatically checks the existing registration, cleans up repositories if needed, and installs the Katello CA before registering the system.
+3. **Validate Registration**:  
+   - If the play completes successfully, the host is registered.  
+   - If any step fails (for example, `Host is null; the registration did not succeed.`), troubleshoot the Satellite configuration and credentials.
+
+---
+
+## Important Variables
+
+- **`satellite_deployment_server`**: URL of the Satellite or Foreman server.  
+- **`satellite_deployment_admin_username`**, **`satellite_deployment_admin_password`**: Credentials to query or update host info.  
+- **`satellite_deployment_organization`**: Organization ID/name for registration.  
+- **`sat_activation_key`**: Activation key used to register the host.  
+- **`yum_repo_dir`**: Directory containing local repository files to be cleaned up if not registered.  
+- **`satellite_kat_cert`**: The Katello CA certificate package name, typically in `/pub` directory on the Satellite.
+
+---
+
+## Notes
+
+- **SSL Verification** is disabled for CA installation to handle scenarios where local certificates are not yet trusted. If security policies require it, replace it with a secure approach.
+- **Force Registration** ensures that if the system is partially registered or misconfigured, it will be re-registered correctly.
+
+---
+
+## Contributing
+
+If you have improvements or wish to add features (e.g., enhanced validations or multi-org handling), please submit a pull request or open an issue. Follow the coding guidelines provided in the repository.
+
+---
+
+## License
+
+This project is distributed under the [MIT License](LICENSE). See the `LICENSE` file for more information.
+
 
