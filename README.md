@@ -151,3 +151,124 @@ ansible-playbook -i inventory site.yml --tags server_update
     - **Purpose:** Cleans up outdated update tags from the instance.
 
 ---
+
+# Cluster Update Documentation
+
+This documentation describes an Ansible-based approach for managing and verifying critical cluster services in a High Availability (HA) environment. Tasks include checking the status of cluster services and nodes, ensuring fencing and HANA resources are functional, dynamically discovering slave nodes, and performing updates or maintenance.
+
+---
+# **Role cluster_update**
+## Overview
+
+## Table of Contents
+
+1. [Overview](#overview)
+2. [Key Tasks](#key-tasks)
+    - [Gather Service Facts](#gather-service-facts)
+    - [Verify Cluster Services](#verify-cluster-services)
+    - [Report Success](#report-success)
+    - [Check Cluster Node Status](#check-cluster-node-status)
+    - [Extract Lost Nodes](#extract-lost-nodes)
+    - [Fail if Nodes Lost](#fail-if-nodes-lost)
+    - [Check Fencing Resource Status](#check-fencing-resource-status)
+    - [Fail if Fencing Failed](#fail-if-fencing-failed)
+    - [Check HANA Resource Status](#check-hana-resource-status)
+    - [Extract Master & Slave Nodes](#extract-master--slave-nodes)
+    - [Add Slave Nodes to Ad-Hoc Inventory](#add-slave-nodes-to-ad-hoc-inventory)
+    - [Include Dynamic Tasks](#include-dynamic-tasks)
+3. [Included Task File: `run_on_dynamic_hosts.yml`](#included-task-file-run_on_dynamic_hostsyml)
+    - [Verify Connection](#verify-connection)
+    - [Backup Configuration](#backup-configuration)
+    - [Standby Nodes](#standby-nodes)
+    - [Stop Cluster Services](#stop-cluster-services)
+    - [Verify Services Stopped](#verify-services-stopped)
+    - [Final Status](#final-status)
+4. [Usage](#usage)
+5. [Notes](#notes)
+6. [Contributing](#contributing)
+7. [License](#license)
+
+---
+
+## Overview
+
+This playbook manages updates and validations on a cluster. It:
+
+- Gathers service facts  
+- Ensures critical HA services are running  
+- Detects and handles node failures  
+- Checks fencing and HANA resource statuses  
+- Dynamically identifies slave nodes to perform actions (standby, stop, etc.)
+
+---
+
+## Key Tasks
+
+### Gather Service Facts
+Collects information about all local services. This allows subsequent tasks to verify whether specific cluster services are running or stopped.
+
+### Verify Cluster Services
+Ensures the specified HA services are running. If any required service is not in the running state, the playbook fails immediately, prompting manual intervention.
+
+### Report Success
+Displays a debug message indicating that the cluster services are successfully running.
+
+### Check Cluster Node Status
+Retrieves a list of cluster nodes and their current states (e.g., `lost`, `member`). This helps confirm that all nodes are healthy before proceeding.
+
+### Extract Lost Nodes
+Parses the output for any nodes in a `lost` state. If found, they are recorded for further reporting or failure.
+
+### Fail if Nodes Lost
+If any nodes appear as `lost`, the playbook fails, indicating a cluster health issue that requires immediate attention.
+
+### Check Fencing Resource Status
+Verifies that the fencing resource is started and functioning. Fencing ensures stable cluster operations by isolating faulty nodes.
+
+### Fail if Fencing Failed
+If the fencing resource is not started, the playbook fails with a descriptive error. This prevents proceeding with cluster operations on an unstable environment.
+
+### Check HANA Resource Status
+Confirms that HANA resources are running as expected. This includes details on master/slave roles or any operational state.
+
+### Extract Master & Slave Nodes
+Parses the HANA resource status to identify the master and all slave nodes. This is crucial when performing rolling updates or maintenance on slave nodes first.
+
+### Add Slave Nodes to Ad-Hoc Inventory
+Dynamically adds identified slave nodes into an in-memory inventory group. This lets the playbook run additional tasks only on those nodes.
+
+### Include Dynamic Tasks
+Brings in additional tasks for the slave nodes, such as creating backups, putting them into standby, or stopping services before updates.
+
+---
+
+## Included Task File: `run_on_dynamic_hosts.yml`
+
+### Verify Connection
+Tests connectivity to the newly added slave nodes. Ensures that Ansible can communicate and run tasks on them.
+
+### Backup Configuration
+Generates a timestamped backup of the cluster configuration (using `pcs config backup`). This safeguards configurations before proceeding with disruptive operations.
+
+### Standby Nodes
+Puts the slave nodes into standby mode, preventing them from serving active roles during maintenance.
+
+### Stop Cluster Services
+Stops the cluster services on the slave nodes to prepare them for updates. This task includes a pause to allow the services to fully terminate.
+
+### Verify Services Stopped
+Checks that the relevant HA services on slave nodes are no longer running, ensuring a clean state for subsequent updates.
+
+### Final Status
+Reports that the slave nodes are now ready for upgrade or further maintenance steps.
+
+---
+
+## Usage
+
+1. **Review Variables**: Ensure the relevant variables (like cluster service names, resource names, etc.) are correctly set in the inventory or variable files.
+2. **Run the Playbook**: Execute the main Ansible playbook. It will automatically include the tasks in `run_on_dynamic_hosts.yml` for newly discovered slave nodes.
+3. **Validate**: The playbook will fail early if any critical checks (e.g., lost nodes, fencing failures) are encountered, ensuring safe and reliable cluster operations.
+
+---
+
