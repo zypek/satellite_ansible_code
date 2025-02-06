@@ -544,3 +544,83 @@ Removes all snapshots in the `remove_list`. This helps clean up stale snapshots 
 - Deletion logic uses `ec2_snapshot` with `state: absent`, so once deleted, snapshots **cannot** be recovered unless you have additional copies.
 
 ---
+**Role server_update**
+
+# Satellite Content Upload Documentation
+
+This documentation explains how to download a package from a specified URL, upload it to a Satellite file-based repository, and then clean up the temporary file used during the process.
+
+---
+
+## Table of Contents
+
+1. [Overview](#overview)  
+2. [Key Steps](#key-steps)  
+   - [Include Role Variables](#include-role-variables)  
+   - [Download Package](#download-package)  
+   - [Upload to Satellite Repository](#upload-to-satellite-repository)  
+   - [Clean Up Temporary File](#clean-up-temporary-file)  
+3. [Usage](#usage)  
+4. [Notes](#notes)  
+5. [Contributing](#contributing)  
+6. [License](#license)
+
+---
+
+## Overview
+
+This workflow automates:
+1. Loading relevant role variables.  
+2. Downloading a package (e.g., an AWS CLI ZIP file) to a temporary location.  
+3. Uploading that file to a specific **Satellite product repository**.  
+4. Cleaning up the local temporary file afterward.
+
+---
+
+## Key Steps
+
+### Include Role Variables
+Fetches variables that might include **`package_url`**, **`package_name`**, **`satellite_repository`**, **`satellite_product`**, and **`satellite_deployment_admin_username`** or **`satellite_deployment_admin_password`**.
+
+### Download Package
+Retrieves the package from the specified URL and places it in a defined temporary location. The file’s permissions are set to ensure it is readable by Ansible for subsequent tasks.
+
+### Upload to Satellite Repository
+Uploads the downloaded file to the **Satellite** or **Foreman** server’s **file-based repository**. This step requires:
+- Valid **credentials** (username/password).  
+- **Server URL** pointing to the Satellite/Foreman.  
+- Proper **product** and **repository** names where the package should be stored.
+
+### Clean Up Temporary File
+Removes the downloaded package to keep the system tidy and prevent accumulation of unnecessary files.
+
+---
+
+## Usage
+
+1. **Confirm Variables**: Ensure that variables such as:
+   - **`package_url`** (source URL to download from),  
+   - **`satellite_deployment_server`** (FQDN or IP of the Satellite server),  
+   - **`satellite_deployment_admin_username`** and **`satellite_deployment_admin_password`**,  
+   - **`satellite_repository`** and **`satellite_product`**,  
+   - **`package_tmp`** (temporary storage directory),  
+   - **`package_name`** (name of the downloaded package),
+   are correctly set.
+
+2. **Execute the Play/Role**:  
+   - This will download the package to the `{{ package_tmp }}` directory.  
+   - Upload the package to the **Satellite** repository.  
+   - Remove the local copy of the package.
+
+3. **Verify**:  
+   - After completion, log in to **Satellite** or **Foreman** to confirm the file is present in the intended repository.
+
+---
+
+## Notes
+
+- **SSL Validation**: For secure environments with valid certificates, set `validate_certs: true`.  
+- **Custom Package Names**: Adjust `package_name` and `package_url` to point to different software if needed.  
+- **Permissions**: Confirm that the **temporary directory** is accessible by Ansible and not restricted by SELinux or other security contexts.
+
+---
