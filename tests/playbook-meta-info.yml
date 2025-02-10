@@ -1,0 +1,59 @@
+---
+- name: Remove old snapshots for all volumes on this instance
+  hosts: all
+  gather_facts: true
+  become: true
+  vars:
+    # We'll compute one_week_ago for older-than logic
+    one_week_ago: "{{ lookup('pipe', 'date -u --date=\"1 week ago\" +%Y-%m-%dT%H:%M:%SZ') }}"
+
+  tasks:
+  - name: Fetch instance identity document
+    ansible.builtin.uri:
+      url: "http://169.254.169.254/latest/dynamic/instance-identity/document"
+      return_content: true
+      method: GET
+    register: identity_doc
+
+  - name: Set region and instance_id
+    ansible.builtin.set_fact:
+      aws_region: "{{ (identity_doc.content | from_json).region }}"
+      instance_id: "{{ (identity_doc.content | from_json).instanceId }}"
+
+  - name: Show
+    debug: 
+      var: aws_region
+
+  - name: Show
+    debug: 
+      var: instance_id
+
+
+  - name: Fetch root device name from metadata
+    ansible.builtin.uri:
+      url: "http://169.254.169.254/latest/meta-data/block-device-mapping/root"
+      return_content: yes
+      method: GET
+    register: root_device_response
+
+  - name: Show
+    debug: 
+      var: root_device_response
+
+
+  - name: Fetch root volume ID from metadata
+    ansible.builtin.uri:
+      url: "http://169.254.169.254/latest/meta-data/block-device-mapping/ami"
+      return_content: yes
+      method: GET
+    register: root_volume_response
+
+  - name: Set old_root_volume_id
+    ansible.builtin.set_fact:
+      old_root_volume_id: "{{ root_volume_response.content | trim }}"
+
+  - name: Show
+    debug: 
+      var: root_volume_response
+
+
