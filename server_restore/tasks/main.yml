@@ -67,7 +67,7 @@
 
 - name: Debug volume IDs
   ansible.builtin.debug:
-    msg: "Found volumes: {{ volume_ids }} in region {{ region }}"
+    msg: "Found volumes: {{ old_root_volume_id }} in region {{ region }}"
 
 # Find the latest snapshot for the root volume
 - name: Get snapshots for the old root volume
