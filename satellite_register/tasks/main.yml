@@ -144,7 +144,6 @@
   when: server_unregister | bool
 
 - name: "Re-check host in Satellite (should not exist)"
-  delegate_to: localhost
   theforeman.foreman.host_info:
     username: "{{ satellite_deployment_admin_username }}"
     password: "{{ satellite_deployment_admin_password }}"
