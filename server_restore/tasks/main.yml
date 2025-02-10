@@ -130,7 +130,10 @@
   retries: 10
   delay: 5
   delegate_to: localhost
-
+- name: Check the Volume IDs
+  debug:
+    var: old_root_volume_id
+  delegate_to: localhost
 - name: Detach old root volume
   amazon.aws.ec2_vol:
     region: "{{ aws_region }}"
