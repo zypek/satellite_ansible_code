@@ -1,6 +1,6 @@
 ---
 - name: Include role variables
-  ansible.builtin.include_vars: "vars/all.yml"
+  ansible.builtin.include_vars: "vars/all.yaml"
 
 - name: Retrieve Instance ID from Metadata
   ansible.builtin.uri:

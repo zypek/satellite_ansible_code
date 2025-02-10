@@ -3,8 +3,9 @@
 - name: Include role variables
   # ansible.builtin.include_vars: "vars/all.yml"
   ansible.builtin.include_vars:
-    dir: var
-    extensions: 'yml'
+    dir: "{{ playbook_dir }}/vars"
+    ignore_unknown_extensions: true
+    extensions: yml
 
 - name: Fetch instance identity document
   ansible.builtin.uri:
@@ -36,15 +37,6 @@
   ansible.builtin.debug:
     var: instance_info
 
-# - name: Extract volume IDs
-#   ansible.builtin.set_fact:
-#     old_root_volume_id: >-
-#       {{
-#         instance_info.instances[0].block_device_mappings
-#         | map(attribute='ebs.volume_id')
-#         | list
-#       }}
-
 - name: Extract root device name
   ansible.builtin.set_fact:
     device_name: "{{ instance_info.instances[0].root_device_name }}"
@@ -64,6 +56,8 @@
     filters:
       volume-id: "{{ old_root_volume_id }}"
       status: "completed"
+    access_key: "{{ aws_access_key | default(omit)}}"
+    secret_key: "{{ aws_secret_key | default(omit)}}"
   register: volume_snapshots
   delegate_to: localhost
 
@@ -86,12 +80,16 @@
     region: "{{ aws_region }}"
     instance_ids: "{{ instance_id }}"
     state: stopped
+    access_key: "{{ aws_access_key | default(omit)}}"
+    secret_key: "{{ aws_secret_key | default(omit)}}"
   delegate_to: localhost
 
 - name: Wait for instance to stop
   amazon.aws.ec2_instance_info:
     region: "{{ aws_region }}"
     instance_ids: "{{ instance_id }}"
+    access_key: "{{ aws_access_key | default(omit)}}"
+    secret_key: "{{ aws_secret_key | default(omit)}}"
   register: instance_status
   until: instance_status.instances[0].state.name == "stopped"
   retries: 10
@@ -104,6 +102,8 @@
     snapshot: "{{ snapshot_id }}"
     availability_zone: "{{ availability_zone }}"
     volume_type: "gp3"
+    access_key: "{{ aws_access_key | default(omit)}}"
+    secret_key: "{{ aws_secret_key | default(omit)}}"
   register: new_volume
   delegate_to: localhost
 
@@ -112,6 +112,8 @@
     region: "{{ aws_region }}"
     filters:
       volume_id: "{{ new_volume.volume_id }}"
+    access_key: "{{ aws_access_key | default(omit)}}"
+    secret_key: "{{ aws_secret_key | default(omit)}}"
   register: new_volume_status
   until: new_volume_status.volumes[0].status == "available"
   retries: 10
@@ -127,6 +129,8 @@
     id: "{{ old_root_volume_id }}"
     instance: "{{ instance_id }}"
     state: absent
+    access_key: "{{ aws_access_key | default(omit)}}"
+    secret_key: "{{ aws_secret_key | default(omit)}}"
   delegate_to: localhost
 
 - name: Attach new volume
@@ -135,6 +139,8 @@
     instance: "{{ instance_id }}"
     id: "{{ new_volume.volume_id }}"
     device_name: "{{ device_name }}"
+    access_key: "{{ aws_access_key | default(omit)}}"
+    secret_key: "{{ aws_secret_key | default(omit)}}"
   delegate_to: localhost
 
 - name: Start the instance
@@ -142,12 +148,16 @@
     region: "{{ aws_region }}"
     instance_ids: "{{ instance_id }}"
     state: running
+    access_key: "{{ aws_access_key | default(omit)}}"
+    secret_key: "{{ aws_secret_key | default(omit)}}"
   delegate_to: localhost
 
 - name: Wait for instance to run
   amazon.aws.ec2_instance_info:
     region: "{{ aws_region }}"
     instance_ids: "{{ instance_id }}"
+    access_key: "{{ aws_access_key | default(omit)}}"
+    secret_key: "{{ aws_secret_key | default(omit)}}"
   register: instance_status
   until: instance_status.instances[0].state.name == "running"
   retries: 10
