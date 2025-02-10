@@ -46,7 +46,7 @@
 ########################################################################
 - name: Gather instance info
   amazon.aws.ec2_instance_info:
-    region: "{{ region }}"
+    region: "{{ aws_region }}"
     instance_ids:
       - "{{ instance_id }}"
   register: instance_info
