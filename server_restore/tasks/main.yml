@@ -3,31 +3,71 @@
 - name: Include role variables
   ansible.builtin.include_vars: "vars/all.yml"
 
-# Get instance metadata
-- name: Get instance details
+# # Get instance metadata
+# - name: Get instance details
+#   amazon.aws.ec2_instance_info:
+#     region: "{{ aws_region | default(omit) }}"  # Region will be dynamically set later
+#     instance_ids: "{{ instance_id }}"
+#   register: instance_info
+
+# # Extract facts from instance metadata
+# - name: Extract dynamic facts (AZ, region, device name)
+#   block:
+#     - name: Extract Availability Zone
+#       ansible.builtin.set_fact:
+#         availability_zone: "{{ instance_info.instances[0].placement.availability_zone }}"
+
+#     - name: Derive AWS region from AZ
+#       ansible.builtin.set_fact:
+#         aws_region: "{{ availability_zone[:-1] }}"  # Removes last character (e.g., "ap-southeast-2a" → "ap-southeast-2")
+
+#     - name: Extract root device name
+#       ansible.builtin.set_fact:
+#         device_name: "{{ instance_info.instances[0].root_device_name }}"
+
+#     - name: Extract current root volume ID
+#       ansible.builtin.set_fact:
+#         old_root_volume_id: "{{ instance_info.instances[0].block_device_mappings | selectattr('device_name', 'equalto', device_name) | map(attribute='ebs.volume_id') | first }}"
+
+- name: Fetch instance identity document
+  ansible.builtin.uri:
+    url: "http://169.254.169.254/latest/dynamic/instance-identity/document"
+    return_content: true
+    method: GET
+  register: identity_doc
+
+- name: Set region and instance_id
+  ansible.builtin.set_fact:
+    aws_region: "{{ (identity_doc.content | from_json).region }}"
+    instance_id: "{{ (identity_doc.content | from_json).instanceId }}"
+
+########################################################################
+# 2) Gather volume IDs attached to this instance
+########################################################################
+- name: Gather instance info
   amazon.aws.ec2_instance_info:
-    region: "{{ aws_region | default(omit) }}"  # Region will be dynamically set later
-    instance_ids: "{{ instance_id }}"
+    region: "{{ region }}"
+    instance_ids:
+      - "{{ instance_id }}"
   register: instance_info
+  delegate_to: localhost
 
-# Extract facts from instance metadata
-- name: Extract dynamic facts (AZ, region, device name)
-  block:
-    - name: Extract Availability Zone
-      ansible.builtin.set_fact:
-        availability_zone: "{{ instance_info.instances[0].placement.availability_zone }}"
+- name: Debug volume IDs
+  ansible.builtin.debug:
+    var: instance_info
 
-    - name: Derive AWS region from AZ
-      ansible.builtin.set_fact:
-        aws_region: "{{ availability_zone[:-1] }}"  # Removes last character (e.g., "ap-southeast-2a" → "ap-southeast-2")
+- name: Extract volume IDs
+  ansible.builtin.set_fact:
+    old_root_volume_id: >-
+      {{
+        instance_info.instances[0].block_device_mappings
+        | map(attribute='ebs.volume_id')
+        | list
+      }}
 
-    - name: Extract root device name
-      ansible.builtin.set_fact:
-        device_name: "{{ instance_info.instances[0].root_device_name }}"
-
-    - name: Extract current root volume ID
-      ansible.builtin.set_fact:
-        old_root_volume_id: "{{ instance_info.instances[0].block_device_mappings | selectattr('device_name', 'equalto', device_name) | map(attribute='ebs.volume_id') | first }}"
+- name: Debug volume IDs
+  ansible.builtin.debug:
+    msg: "Found volumes: {{ volume_ids }} in region {{ region }}"
 
 # Find the latest snapshot for the root volume
 - name: Get snapshots for the old root volume
