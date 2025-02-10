@@ -158,9 +158,11 @@
   delegate_to: localhost
   when: server_unregister | bool
 
-- name: Test
-  debug:
-    var: sat_host_reg_final
+- name: Remove katello package
+  ansible.builtin.dnf: 
+    name: katello*
+    state: absent
+  when: server_unregister | bool
 
 - name: "Assert that the host is absent from Satellite"
   ansible.builtin.assert:
