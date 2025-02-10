@@ -34,13 +34,13 @@
     url: "http://169.254.169.254/latest/dynamic/instance-identity/document"
     return_content: true
     method: GET
-  register: identity_doc
+  register: instance_info
 
 - name: Set region and instance_id
   ansible.builtin.set_fact:
-    aws_region: "{{ (identity_doc.content | from_json).region }}"
-    instance_id: "{{ (identity_doc.content | from_json).instanceId }}"
-    availability_zone: "{{ (identity_doc.content | from_json).availabilityZone }}"
+    aws_region: "{{ (instance_info.content | from_json).region }}"
+    instance_id: "{{ (instance_info.content | from_json).instanceId }}"
+    availability_zone: "{{ (instance_info.content | from_json).availabilityZone }}"
     
 ########################################################################
 # 2) Gather volume IDs attached to this instance
@@ -57,14 +57,22 @@
   ansible.builtin.debug:
     var: instance_info
 
-- name: Extract volume IDs
+# - name: Extract volume IDs
+#   ansible.builtin.set_fact:
+#     old_root_volume_id: >-
+#       {{
+#         instance_info.instances[0].block_device_mappings
+#         | map(attribute='ebs.volume_id')
+#         | list
+#       }}
+
+- name: Extract root device name
   ansible.builtin.set_fact:
-    old_root_volume_id: >-
-      {{
-        instance_info.instances[0].block_device_mappings
-        | map(attribute='ebs.volume_id')
-        | list
-      }}
+    device_name: "{{ instance_info.instances[0].root_device_name }}"
+
+- name: Extract current root volume ID
+  ansible.builtin.set_fact:
+    old_root_volume_id: "{{ instance_info.instances[0].block_device_mappings | selectattr('device_name', 'equalto', device_name) | map(attribute='ebs.volume_id') | first }}"
 
 - name: Debug volume IDs
   ansible.builtin.debug:
