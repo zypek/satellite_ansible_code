@@ -11,6 +11,7 @@
     name: "{{ inventory_hostname }}"
     validate_certs: false
   register: sat_host_reg
+  when: not server_unregister | bool
   delegate_to: localhost
 
 - name: Find files in the directory
@@ -18,23 +19,31 @@
     paths: "{{ yum_repo_dir }}"
     file_type: file
   register: found_files
-  when: sat_host_reg.host is none
+  when: 
+    - sat_host_reg.host is none
+    - not server_unregister | bool
 
 - name: Debug the files found (optional)
   ansible.builtin.debug:
     var: found_files.files
-  when: sat_host_reg.host is none
+  when: 
+    - sat_host_reg.host is none
+    - not server_unregister | bool
 
 - name: Remove files if any are found
   ansible.builtin.file:
     path: "{{ item.path }}"
     state: absent
   loop: "{{ found_files.files }}"
-  when: sat_host_reg.host is none
+  when:
+    - sat_host_reg.host is none
+    - not server_unregister | bool
 
 - name: Ensure that subscription_manager is used to manage subscriptions
   ansible.builtin.command: "subscription-manager config --rhsm.manage_repos=1"
-  when: sat_host_reg.host is none
+  when:
+    - sat_host_reg.host is none
+    - not server_unregister | bool
 
 - name: Install Katello CA from Capsule with SSL verify off
   ansible.builtin.dnf:
@@ -45,10 +54,12 @@
     rhsm_baseurl: "{{ satellite_base_url | default(omit)}}"
     disable_gpg_check: true
   register: katello_ca_install
+  when: not server_unregister | bool
 
 - name: Debug - Katello CA install result
   ansible.builtin.debug:
     var: katello_ca_install
+  when: not server_unregister | bool
 
 - name: Register system to Satellite using activation key
   community.general.redhat_subscription:
@@ -57,10 +68,12 @@
     activationkey: "{{ sat_activation_key }}"
     force_register: true
   register: subman_reg
+  when: not server_unregister | bool
 
 - name: Debug - registration result
   ansible.builtin.debug:
     var: subman_reg
+  when: not server_unregister | bool
 
 - name: "Show a host"
   theforeman.foreman.host_info:
@@ -71,6 +84,7 @@
     name: "{{ inventory_hostname }}"
     validate_certs: false
   register: sat_host_reg
+  when: not server_unregister | bool
 
 - name: Check if sat_host_reg.host is set
   ansible.builtin.assert:
@@ -78,7 +92,80 @@
       - sat_host_reg.host is not none
     fail_msg: "Host is null; the registration did not succeed."
     success_msg: "Host is set; registration succeeded."
+  when: not server_unregister | bool
 
 - name: Debug - registration result
   ansible.builtin.debug:
     var: sat_host_reg
+  when: not server_unregister | bool
+
+
+- name: "Check if host is registered in Satellite"
+  theforeman.foreman.host_info:
+    username: "{{ satellite_deployment_admin_username }}"
+    password: "{{ satellite_deployment_admin_password }}"
+    server_url: "{{ satellite_deployment_server }}"
+    organization: "{{ satellite_deployment_organization }}"
+    name: "{{ inventory_hostname }}"
+    validate_certs: false
+  register: sat_host_reg
+  failed_when: false      # Don't fail if the host doesn't exist
+  changed_when: false     # This is just an info check
+  when: server_unregister | bool
+  delegate_to: localhost
+
+- name: "Set fact indicating if Satellite knows about this host"
+  ansible.builtin.set_fact:
+    is_in_satellite: "{{ sat_host_reg.host is defined }}"
+  when: server_unregister | bool
+  delegate_to: localhost
+
+- name: "Delete host from Satellite if present"
+  theforeman.foreman.host:
+    username: "{{ satellite_deployment_admin_username }}"
+    password: "{{ satellite_deployment_admin_password }}"
+    server_url: "{{ satellite_deployment_server }}"
+    organization: "{{ satellite_deployment_organization }}"
+    name: "{{ inventory_hostname }}"
+    state: absent
+    validate_certs: false
+  when:
+    - server_unregister | bool
+    - is_in_satellite
+  delegate_to: localhost
+
+- name: "Unregister the local system from Satellite subscription"
+  community.general.redhat_subscription:
+    state: absent
+  when: server_unregister | bool
+
+- name: "Unregister the local system from Satellite subscription"
+  ansible.builtin.shell: subscription-manager clean
+  when: server_unregister | bool
+
+- name: "Re-check host in Satellite (should not exist)"
+  delegate_to: localhost
+  theforeman.foreman.host_info:
+    username: "{{ satellite_deployment_admin_username }}"
+    password: "{{ satellite_deployment_admin_password }}"
+    server_url: "{{ satellite_deployment_server }}"
+    organization: "{{ satellite_deployment_organization }}"
+    name: "{{ inventory_hostname }}"
+    validate_certs: false
+  register: sat_host_reg_final
+  failed_when: false
+  changed_when: false
+  delegate_to: localhost
+  when: server_unregister | bool
+
+- name: Test
+  debug:
+    var: sat_host_reg_final
+
+- name: "Assert that the host is absent from Satellite"
+  ansible.builtin.assert:
+    that:
+      - sat_host_reg_final.host is none
+    fail_msg: "Host '{{ inventory_hostname }}' is still present in Satellite!"
+    success_msg: "Host '{{ inventory_hostname }}' successfully removed from Satellite."
+  when: server_unregister | bool
