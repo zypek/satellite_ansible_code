@@ -2,6 +2,9 @@
 - name: Gather all snapshots for this volume
   amazon.aws.ec2_snapshot_info:
     region: "{{ region }}"
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
     filters:
       volume-id: "{{ current_volume_id }}"
   register: snap_info
@@ -74,6 +77,9 @@
     region: "{{ region }}"
     snapshot_id: "{{ item }}"
     state: absent
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
   loop: "{{ remove_list }}"
   when: remove_list | length > 0
   delegate_to: localhost

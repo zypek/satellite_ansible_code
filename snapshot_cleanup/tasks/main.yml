@@ -2,12 +2,20 @@
 ########################################################################
 # Import Variables
 ########################################################################
-- name: Include role variables
-  ansible.builtin.include_vars: "vars/all.yml"
+#- name: Include role variables
+# ansible.builtin.include_vars: "vars/all.yml"
 
 ########################################################################
 # 1) Get region & instance metadata from 169.254.169.254
 ########################################################################
+- name: Assume Role
+  amazon.aws.sts_assume_role:
+    role_arn: "arn:aws:iam::{{ aws_account_no }}:role/{{ aws_role }}"
+    role_session_name: "assumeRoleSession"
+    region: "{{ aws_region }}"
+  register: assumed_role
+  delegate_to: localhost
+
 - name: Fetch instance identity document
   ansible.builtin.uri:
     url: "http://169.254.169.254/latest/dynamic/instance-identity/document"
@@ -28,13 +36,15 @@
     region: "{{ region }}"
     instance_ids:
       - "{{ instance_id }}"
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
   register: instance_info
   delegate_to: localhost
 
 - name: Debug volume IDs
   ansible.builtin.debug:
     var: instance_info
-
 
 - name: Extract volume IDs
   ansible.builtin.set_fact:
