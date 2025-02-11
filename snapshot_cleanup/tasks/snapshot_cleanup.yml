@@ -33,12 +33,6 @@
   ansible.builtin.debug:
     var: old_snapshots
 
-- name: Assert Old Snapshots exist
-  ansible.builtin.assert:
-    that: 
-      - old_snapshots | length > 0
-    success_msg: "Old Snapshots exist. Proceeding to check them out"
-
 - name: Determine the latest snapshot overall
   ansible.builtin.set_fact:
     latest_snapshot: >-
@@ -81,7 +75,7 @@
       - "Newest old snapshot: {{ newest_old_snapshot.snapshot_id if newest_old_snapshot else 'None' }}"
       - "Removing: {{ remove_list }}"
   when: old_snapshots | length > 0
-  
+
 - name: Delete old snapshots
   amazon.aws.ec2_snapshot:
     region: "{{ region }}"
