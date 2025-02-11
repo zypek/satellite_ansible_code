@@ -1,7 +1,4 @@
 ---
-- name: Include role variables
-  ansible.builtin.include_vars: "vars/all.yml"
-
 - name: "Verify satellite_content_view_version_cleanup_keep is set"
   ansible.builtin.assert:
     that:

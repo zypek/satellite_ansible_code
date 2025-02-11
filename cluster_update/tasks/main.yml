@@ -1,7 +1,4 @@
 ---
-- name: Include role variables
-  ansible.builtin.include_vars: "vars/all.yml"
-
 - name: Gather service facts
   ansible.builtin.service_facts:
 
