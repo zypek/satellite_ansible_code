@@ -95,7 +95,7 @@
 
 - name: Report Update Success
   ansible.builtin.debug:
-    msg: "Update was successful and sshd is running."
+    msg: "Update was successful and all services are running."
 
 - name: "Check The CV version"
   theforeman.foreman.content_view_info:
