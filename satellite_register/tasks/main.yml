@@ -1,7 +1,4 @@
 ---
-- name: Include role variables
-  ansible.builtin.include_vars: "vars/all.yml"
-
 - name: "Verify if the host has been already registered to the Satellite"
   theforeman.foreman.host_info:
     username: "{{ satellite_deployment_admin_username }}"
