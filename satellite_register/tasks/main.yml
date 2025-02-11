@@ -111,6 +111,13 @@
     var: dnf_download_test
   when: not server_unregister | bool
   
+- name: Assert The Server Can Download the package
+  ansible.builtin.assert:
+    that: dnf_download_test is defined
+  fail_msg: "Server cannot download the package"
+  success_msg: "Server can Download The Package. Registration Successful"
+  when: not server_unregister | bool
+
 - name: "Check if host is registered in Satellite"
   theforeman.foreman.host_info:
     username: "{{ satellite_deployment_admin_username }}"
