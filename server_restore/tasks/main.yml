@@ -33,10 +33,6 @@
   register: instance_info
   delegate_to: localhost
 
-- name: Debug volume IDs
-  ansible.builtin.debug:
-    var: instance_info
-
 - name: Extract root device name
   ansible.builtin.set_fact:
     device_name: "{{ instance_info.instances[0].root_device_name }}"
@@ -119,10 +115,7 @@
   retries: 10
   delay: 5
   delegate_to: localhost
-- name: Check the Volume IDs
-  debug:
-    var: old_root_volume_id
-  delegate_to: localhost
+
 - name: Detach old root volume
   amazon.aws.ec2_vol:
     region: "{{ aws_region }}"
@@ -165,5 +158,3 @@
   delegate_to: localhost
 
 - name: Print recovery status
-  ansible.builtin.debug:
-    msg: "Instance {{ instance_id }} is running with restored volume {{ new_volume.volume_id }} (from snapshot {{ snapshot_id }})"
