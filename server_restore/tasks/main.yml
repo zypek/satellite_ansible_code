@@ -158,3 +158,5 @@
   delegate_to: localhost
 
 - name: Print recovery status
+  ansible.builtin.debug:
+    msg: "Instance {{ instance_id }} is running with restored volume {{ new_volume.volume_id }} (from snapshot {{ snapshot_id }})"
