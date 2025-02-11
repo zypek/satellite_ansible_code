@@ -99,7 +99,18 @@
     var: sat_host_reg
   when: not server_unregister | bool
 
+- name: Download Test package
+  ansible.builtin.dnf: 
+    name: tree    
+    download_only: true
+  register: dnf_download_test
+  when: not server_unregister | bool  
 
+- name: Check The tasks
+  ansible.builtin.debug:
+    var: dnf_download_test
+  when: not server_unregister | bool
+  
 - name: "Check if host is registered in Satellite"
   theforeman.foreman.host_info:
     username: "{{ satellite_deployment_admin_username }}"
