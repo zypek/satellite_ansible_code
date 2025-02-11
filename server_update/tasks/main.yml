@@ -1,6 +1,14 @@
 ---
-- name: Include role variables
-  ansible.builtin.include_vars: "vars/all.yaml"
+#- name: Include role variables
+# ansible.builtin.include_vars: "vars/all.yaml"
+
+- name: Assume Role
+  amazon.aws.sts_assume_role:
+    role_arn: "arn:aws:iam::{{ aws_account_no }}:role/{{ aws_role }}"
+    role_session_name: "assumeRoleSession"
+    region: "{{ aws_region }}"
+  register: assumed_role
+  delegate_to: localhost
 
 - name: Retrieve Instance ID from Metadata
   ansible.builtin.uri:
@@ -16,6 +24,9 @@
   amazon.aws.ec2_instance_info:
     instance_ids: "{{ instance_id }}"
     region: "{{ aws_region }}"
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
   register: instance_info
   delegate_to: localhost
 
@@ -24,6 +35,9 @@
     volume_id: "{{ item }}"
     description: "Snapshot for volume {{ item }} of instance {{ instance_id }}"
     region: "{{ aws_region }}"
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
   loop: "{{ instance_info.instances[0].block_device_mappings | map(attribute='ebs.volume_id') | list }}"
   delegate_to: localhost
   register: snapshot_results
@@ -142,12 +156,18 @@
     region: "{{ aws_region }}"
     tags: "{{ { backup_tag_key: backup_tag_value } }}"
     state: present
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
   delegate_to: localhost
 
 - name: Get current instance tags
   amazon.aws.ec2_instance_info:
     instance_ids: "{{ instance_id }}"
     region: "{{ aws_region }}"
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
   register: instance_info
   delegate_to: localhost
 
@@ -177,5 +197,8 @@
     region: "{{ aws_region }}"
     state: absent
     tags: "{{ cleanup_tags }}"
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
   delegate_to: localhost
   when: cleanup_tags | length > 0
