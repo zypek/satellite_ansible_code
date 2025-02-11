@@ -1,11 +1,18 @@
 ---
 # tasks file for server_restore
-- name: Include role variables
-  # ansible.builtin.include_vars: "vars/all.yml"
-  ansible.builtin.include_vars:
-    dir: "{{ playbook_dir }}/vars"
-    ignore_unknown_extensions: true
-    extensions: yml
+#- name: Include role variables
+#  ansible.builtin.include_vars:
+#     dir: "{{ playbook_dir }}/vars"
+#     extensions:
+#       - yml
+
+- name: Assume Role
+  amazon.aws.sts_assume_role:
+    role_arn: "arn:aws:iam::{{ aws_account_no }}:role/{{ aws_role }}"
+    role_session_name: "assumeRoleSession"
+    region: "{{ aws_region }}"
+  register: assumed_role
+  delegate_to: localhost
 
 - name: Fetch instance identity document
   ansible.builtin.uri:
@@ -28,8 +35,9 @@
     region: "{{ aws_region }}"
     instance_ids:
       - "{{ instance_id }}"
-    access_key: "{{ aws_access_key | default(omit)}}"
-    secret_key: "{{ aws_secret_key | default(omit)}}"
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
   register: instance_info
   delegate_to: localhost
 
@@ -52,8 +60,9 @@
     filters:
       volume-id: "{{ old_root_volume_id }}"
       status: "completed"
-    access_key: "{{ aws_access_key | default(omit)}}"
-    secret_key: "{{ aws_secret_key | default(omit)}}"
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
   register: volume_snapshots
   delegate_to: localhost
 
@@ -76,16 +85,18 @@
     region: "{{ aws_region }}"
     instance_ids: "{{ instance_id }}"
     state: stopped
-    access_key: "{{ aws_access_key | default(omit)}}"
-    secret_key: "{{ aws_secret_key | default(omit)}}"
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
   delegate_to: localhost
 
 - name: Wait for instance to stop
   amazon.aws.ec2_instance_info:
     region: "{{ aws_region }}"
     instance_ids: "{{ instance_id }}"
-    access_key: "{{ aws_access_key | default(omit)}}"
-    secret_key: "{{ aws_secret_key | default(omit)}}"
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
   register: instance_status
   until: instance_status.instances[0].state.name == "stopped"
   retries: 10
@@ -98,8 +109,9 @@
     snapshot: "{{ snapshot_id }}"
     availability_zone: "{{ availability_zone }}"
     volume_type: "gp3"
-    access_key: "{{ aws_access_key | default(omit)}}"
-    secret_key: "{{ aws_secret_key | default(omit)}}"
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
   register: new_volume
   delegate_to: localhost
 
@@ -108,8 +120,9 @@
     region: "{{ aws_region }}"
     filters:
       volume_id: "{{ new_volume.volume_id }}"
-    access_key: "{{ aws_access_key | default(omit)}}"
-    secret_key: "{{ aws_secret_key | default(omit)}}"
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
   register: new_volume_status
   until: new_volume_status.volumes[0].status == "available"
   retries: 10
@@ -122,8 +135,9 @@
     id: "{{ old_root_volume_id }}"
     instance: "{{ instance_id }}"
     state: absent
-    access_key: "{{ aws_access_key | default(omit)}}"
-    secret_key: "{{ aws_secret_key | default(omit)}}"
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
   delegate_to: localhost
 
 - name: Attach new volume
@@ -132,8 +146,9 @@
     instance: "{{ instance_id }}"
     id: "{{ new_volume.volume_id }}"
     device_name: "{{ device_name }}"
-    access_key: "{{ aws_access_key | default(omit)}}"
-    secret_key: "{{ aws_secret_key | default(omit)}}"
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
   delegate_to: localhost
 
 - name: Start the instance
@@ -141,16 +156,18 @@
     region: "{{ aws_region }}"
     instance_ids: "{{ instance_id }}"
     state: running
-    access_key: "{{ aws_access_key | default(omit)}}"
-    secret_key: "{{ aws_secret_key | default(omit)}}"
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
   delegate_to: localhost
 
 - name: Wait for instance to run
   amazon.aws.ec2_instance_info:
     region: "{{ aws_region }}"
     instance_ids: "{{ instance_id }}"
-    access_key: "{{ aws_access_key | default(omit)}}"
-    secret_key: "{{ aws_secret_key | default(omit)}}"
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
   register: instance_status
   until: instance_status.instances[0].state.name == "running"
   retries: 10
