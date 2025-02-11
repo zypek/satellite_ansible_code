@@ -33,6 +33,13 @@
   ansible.builtin.debug:
     var: old_snapshots
 
+- name: Assert Old Snapshots exist
+  ansible.builtin.assert:
+    that: 
+      - old_snapshots | length > 0
+    fail_msg: "Old Snapshots do not exist"
+    success_msg: "Old Snapshots exist. Proceeding to check them out"
+
 - name: Determine the latest snapshot overall
   ansible.builtin.set_fact:
     latest_snapshot: >-
