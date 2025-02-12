@@ -34,6 +34,10 @@
   register: instance_info
   delegate_to: localhost
 
+- name: Show the snapshot_id
+  ansible.builtin.debug:
+    var: instance_info.instances[0]
+
 # - name: Extract root device name
 #   ansible.builtin.set_fact:
 #     device_name: "{{ instance_info.instances[0].root_device_name }}"
