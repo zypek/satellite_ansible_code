@@ -1,7 +1,4 @@
 ---
-- name: Include role variables
-  ansible.builtin.include_vars: "vars/all.yml"
-
 - name: Download "{{ package_name }} to {{ package_tmp }}"
   ansible.builtin.get_url:
     url: "{{ package_url }}"

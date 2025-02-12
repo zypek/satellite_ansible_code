@@ -1,7 +1,4 @@
 ---
-- name: Include role variables
-  ansible.builtin.include_vars: "vars/all.yml"
-
 # tasks file for content_view_errata
 - name: "Include errata by date"
   theforeman.foreman.content_view_filter_rule:

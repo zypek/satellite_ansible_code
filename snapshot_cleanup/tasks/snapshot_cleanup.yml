@@ -2,6 +2,9 @@
 - name: Gather all snapshots for this volume
   amazon.aws.ec2_snapshot_info:
     region: "{{ region }}"
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
     filters:
       volume-id: "{{ current_volume_id }}"
   register: snap_info
@@ -38,6 +41,7 @@
         | sort(attribute='start_time', reverse=False)
         | last
       }}
+  when: old_snapshots | length > 0
 
 - name: Determine newest snapshot among old snapshots
   ansible.builtin.set_fact:
@@ -49,6 +53,7 @@
         if (old_snapshots | length) > 0
         else None
       }}
+  when: old_snapshots | length > 0
 
 - name: Build the list of snapshots to remove
   ansible.builtin.set_fact:
@@ -59,6 +64,7 @@
         | map(attribute='snapshot_id')
         | list
       }}
+  when: old_snapshots | length > 0
 
 - name: Debug info
   ansible.builtin.debug:
@@ -68,12 +74,16 @@
       - "Latest overall snapshot: {{ latest_snapshot.snapshot_id if latest_snapshot else 'None' }}"
       - "Newest old snapshot: {{ newest_old_snapshot.snapshot_id if newest_old_snapshot else 'None' }}"
       - "Removing: {{ remove_list }}"
+  when: old_snapshots | length > 0
 
 - name: Delete old snapshots
   amazon.aws.ec2_snapshot:
     region: "{{ region }}"
     snapshot_id: "{{ item }}"
     state: absent
-  loop: "{{ remove_list }}"
-  when: remove_list | length > 0
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
+  loop: "{{ remove_list | default([]) }}"
+  when: (remove_list | default([])) | length > 0
   delegate_to: localhost

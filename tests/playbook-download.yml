@@ -1,0 +1,41 @@
+---
+- name: Manage AWS instance snapshot, updates, and verification
+  hosts: all
+  gather_facts: false
+  become: true
+  vars:
+    package_name: 'tree'
+    download_only_option: 'true'
+    dnf_state_option: 'present'
+    proxy_env:
+      http_proxy: "http://app-proxy:3128"
+      https_proxy: "http://app-proxy:3128"
+  tasks:
+  - name: Download Test package
+    ansible.builtin.dnf: 
+      name: tree    
+      download_only: "{{ download_only_option | default(false)}}"
+      state: "{{ dnf_state_option | default(present)}}"
+    register: dnf_download_test
+    environment: "{{ use_proxy | default(false) | bool | ternary(proxy_env, {}) }}"
+
+# You can check the results of the install using the registered variable
+  - name: Check The tasks
+    ansible.builtin.debug:
+      msg: "{{ dnf_download_test.results }}"
+  
+# You can check the ansible facts as below
+  - name: Gather package facts
+    ansible.builtin.package_facts:
+
+  - name: Check if the package "tree" is installed
+    ansible.builtin.debug:
+      msg: "Package 'tree' is installed with version {{ ansible_facts.packages['tree'][0].version }}"
+    when: "'tree' in ansible_facts.packages"
+
+  - name: Assert The Server Can Download the package
+    ansible.builtin.assert:
+      that: 
+        - dnf_download_test is defined
+      fail_msg: "Server cannot download the package"
+      success_msg: "Server can Download The Package. Registration Successful"

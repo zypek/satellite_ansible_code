@@ -3,9 +3,18 @@
   hosts: all
   become: true
   roles:
+    - role: server_snapshot
+      tags:
+        - server_snapshot
+    - role: server_restore_multi_vol
+      tags:
+        - server_restore_multi_vol
     - role: server_update
       tags:
         - server_update
+    - role: create_update_tag
+      tags:
+        - create_update_tag
     - role: snapshot_cleanup
       tags:
         - snapshot_cleanup
