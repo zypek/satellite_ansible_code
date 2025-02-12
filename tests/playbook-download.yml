@@ -19,10 +19,20 @@
     register: dnf_download_test
     environment: "{{ use_proxy | default(false) | bool | ternary(proxy_env, {}) }}"
 
+# You can check the results of the install using the registered variable
   - name: Check The tasks
     ansible.builtin.debug:
-      var: dnf_download_test
+      msg: "{{ dnf_download_test.results }}"
   
+# You can check the ansible facts as below
+  - name: Gather package facts
+    ansible.builtin.package_facts:
+
+  - name: Check if the package "tree" is installed
+    ansible.builtin.debug:
+      msg: "Package 'tree' is installed with version {{ ansible_facts.packages['tree'][0].version }}"
+    when: "'tree' in ansible_facts.packages"
+
   - name: Assert The Server Can Download the package
     ansible.builtin.assert:
       that: 
