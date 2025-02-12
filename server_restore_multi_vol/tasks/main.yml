@@ -1,0 +1,195 @@
+---
+# Assume Role for AWS Access
+- name: Assume Role
+  amazon.aws.sts_assume_role:
+    role_arn: "arn:aws:iam::{{ aws_account_no }}:role/{{ aws_role }}"
+    role_session_name: "assumeRoleSession"
+    region: "{{ aws_region }}"
+  register: assumed_role
+  delegate_to: localhost
+
+# Get Instance Metadata
+- name: Fetch instance identity document
+  ansible.builtin.uri:
+    url: "http://169.254.169.254/latest/dynamic/instance-identity/document"
+    return_content: true
+    method: GET
+  register: instance_metadata
+
+- name: Set region, instance_id, and availability_zone
+  ansible.builtin.set_fact:
+    aws_region: "{{ (instance_metadata.content | from_json).region }}"
+    instance_id: "{{ (instance_metadata.content | from_json).instanceId }}"
+    availability_zone: "{{ (instance_metadata.content | from_json).availabilityZone }}"
+
+# Get All Attached Volumes
+- name: Get instance details
+  amazon.aws.ec2_instance_info:
+    region: "{{ aws_region }}"
+    instance_ids: "{{ instance_id }}"
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
+  register: instance_info
+  delegate_to: localhost
+
+- name: Extract root device name
+  ansible.builtin.set_fact:
+    root_device_name: "{{ instance_info.instances[0].root_device_name }}"
+
+- name: Extract all attached volumes
+  ansible.builtin.set_fact:
+    block_device_mappings: "{{ instance_info.instances[0].block_device_mappings }}"
+
+- name: Debug attached volumes
+  ansible.builtin.debug:
+    var: block_device_mappings
+
+# Initialize block_device_snapshots as an empty list
+- name: Initialize block_device_snapshots
+  ansible.builtin.set_fact:
+    block_device_snapshots: []
+
+# Find the Latest Snapshot for Each Volume
+- name: Find latest snapshot for each volume
+  amazon.aws.ec2_snapshot_info:
+    region: "{{ aws_region }}"
+    filters:
+      volume-id: "{{ item.ebs.volume_id }}"
+      status: "completed"
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
+  register: volume_snapshots
+  loop: "{{ block_device_mappings }}"
+  delegate_to: localhost
+
+- name: Set facts for latest snapshots
+  ansible.builtin.set_fact:
+    block_device_snapshots: >-
+      {{ block_device_snapshots + [{
+        "device_name": item.item.device_name,
+        "volume_id": item.item.ebs.volume_id,
+        "snapshot_id": (item.snapshots | sort(attribute='start_time', reverse=true) | first).snapshot_id
+      }] }}
+  loop: "{{ volume_snapshots.results }}"
+  when: item.snapshots | length > 0
+
+- name: Fail if any volume has no snapshot
+  ansible.builtin.fail:
+    msg: "No snapshots found for one of the volumes"
+  when: block_device_snapshots is not defined or block_device_snapshots | length == 0
+
+- name: Debug snapshot information
+  ansible.builtin.debug:
+    var: block_device_snapshots
+
+# Initialize block_device_new_volumes as an empty list
+- name: Initialize block_device_new_volumes
+  ansible.builtin.set_fact:
+    block_device_new_volumes: []
+
+# Create New Volumes from Snapshots
+- name: Create new volumes from snapshots
+  amazon.aws.ec2_vol:
+    region: "{{ aws_region }}"
+    snapshot: "{{ item.snapshot_id }}"
+    availability_zone: "{{ availability_zone }}"
+    volume_type: "gp3"
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
+  register: new_volumes
+  loop: "{{ block_device_snapshots }}"
+  delegate_to: localhost
+
+- name: Set facts for new volumes
+  ansible.builtin.set_fact:
+    block_device_new_volumes: "{{ block_device_new_volumes + [{
+      'device_name': item.item.device_name,
+      'old_volume_id': item.item.volume_id,
+      'new_volume_id': item.volume_id
+    }] }}"
+  loop: "{{ new_volumes.results }}"
+
+- name: Debug new volumes
+  ansible.builtin.debug:
+    var: block_device_new_volumes
+
+# Stop the EC2 Instance AFTER new volumes are created
+- name: Stop the instance
+  amazon.aws.ec2_instance:
+    region: "{{ aws_region }}"
+    instance_ids: "{{ instance_id }}"
+    state: stopped
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
+  delegate_to: localhost
+
+- name: Wait for instance to stop
+  amazon.aws.ec2_instance_info:
+    region: "{{ aws_region }}"
+    instance_ids: "{{ instance_id }}"
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
+  register: instance_status
+  until: instance_status.instances[0].state.name == "stopped"
+  retries: 10
+  delay: 10
+  delegate_to: localhost
+
+# Detach Old Volumes
+- name: Detach old volumes
+  amazon.aws.ec2_vol:
+    region: "{{ aws_region }}"
+    id: "{{ item.old_volume_id }}"
+    instance: "{{ instance_id }}"
+    state: absent
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
+  loop: "{{ block_device_new_volumes }}"
+  delegate_to: localhost
+
+# Attach New Volumes
+- name: Attach new volumes
+  amazon.aws.ec2_vol:
+    region: "{{ aws_region }}"
+    instance: "{{ instance_id }}"
+    id: "{{ item.new_volume_id }}"
+    device_name: "{{ item.device_name }}"
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
+  loop: "{{ block_device_new_volumes }}"
+  delegate_to: localhost
+
+# Start the EC2 Instance
+- name: Start the instance
+  amazon.aws.ec2_instance:
+    region: "{{ aws_region }}"
+    instance_ids: "{{ instance_id }}"
+    state: running
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
+  delegate_to: localhost
+
+- name: Wait for instance to run
+  amazon.aws.ec2_instance_info:
+    region: "{{ aws_region }}"
+    instance_ids: "{{ instance_id }}"
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
+  register: instance_status
+  until: instance_status.instances[0].state.name == "running"
+  retries: 10
+  delay: 10
+  delegate_to: localhost
+
+- name: Print recovery status
+  ansible.builtin.debug:
+    msg: "Instance {{ instance_id }} is running with restored volumes from snapshots."

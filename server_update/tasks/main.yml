@@ -104,10 +104,6 @@
     organization: "{{ satellite_deployment_organization }}"
   register: sat_ccv_version
 
-- name: Report Update Success
-  ansible.builtin.debug:
-    var: sat_ccv_version
-
 - name: Initialize composite CV fact
   ansible.builtin.set_fact:
     cv_comp:
@@ -119,6 +115,8 @@
   ansible.builtin.set_fact:
     cv_comp: "{{ cv_comp | combine({'components': cv_comp.components + [component_entry]}) }}"
   loop: "{{ sat_ccv_version.content_view.components }}"
+  loop_control:
+    label: "{{ item.name }}"
   vars:
     component_id: "{{ item.id }}"
     component_version: "{{ item.version }}"
