@@ -1,0 +1,172 @@
+---
+- name: Assume Role
+  amazon.aws.sts_assume_role:
+    role_arn: "arn:aws:iam::{{ aws_account_no }}:role/{{ aws_role }}"
+    role_session_name: "assumeRoleSession"
+    region: "{{ aws_region }}"
+  register: assumed_role
+  delegate_to: localhost
+
+- name: Fetch instance identity document
+  ansible.builtin.uri:
+    url: "http://169.254.169.254/latest/dynamic/instance-identity/document"
+    return_content: true
+    method: GET
+  register: instance_info
+
+- name: Set region and instance_id
+  ansible.builtin.set_fact:
+    aws_region: "{{ (instance_info.content | from_json).region }}"
+    instance_id: "{{ (instance_info.content | from_json).instanceId }}"
+    availability_zone: "{{ (instance_info.content | from_json).availabilityZone }}"
+    
+########################################################################
+# 2) Gather volume IDs attached to this instance
+########################################################################
+- name: Gather instance info
+  amazon.aws.ec2_instance_info:
+    region: "{{ aws_region }}"
+    instance_ids:
+      - "{{ instance_id }}"
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
+  register: instance_info
+  delegate_to: localhost
+
+- name: Extract root device name
+  ansible.builtin.set_fact:
+    device_name: "{{ instance_info.instances[0].root_device_name }}"
+
+- name: Extract current root volume ID
+  ansible.builtin.set_fact:
+    old_root_volume_id: "{{ instance_info.instances[0].block_device_mappings | selectattr('device_name', 'equalto', device_name) | map(attribute='ebs.volume_id') | first }}"
+
+- name: Debug volume IDs
+  ansible.builtin.debug:
+    msg: "Found volumes: {{ old_root_volume_id }} in region {{ aws_region }}"
+
+# Find the latest snapshot for the root volume
+- name: Get snapshots for the old root volume
+  amazon.aws.ec2_snapshot_info:
+    region: "{{ aws_region }}"
+    filters:
+      volume-id: "{{ old_root_volume_id }}"
+      status: "completed"
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
+  register: volume_snapshots
+  delegate_to: localhost
+
+- name: Fail if no snapshots exist
+  ansible.builtin.fail:
+    msg: "No snapshots found for volume {{ old_root_volume_id }}"
+  when: volume_snapshots.snapshots | length == 0
+
+- name: Set snapshot_id to the latest snapshot
+  ansible.builtin.set_fact:
+    snapshot_id: "{{ (volume_snapshots.snapshots | sort(attribute='start_time', reverse=true) | first).snapshot_id }}"
+
+- name: Show the snapshot_id
+  ansible.builtin.debug:
+    var: snapshot_id
+
+# Stop instance and replace volume
+- name: Stop the instance
+  amazon.aws.ec2_instance:
+    region: "{{ aws_region }}"
+    instance_ids: "{{ instance_id }}"
+    state: stopped
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
+  delegate_to: localhost
+
+- name: Wait for instance to stop
+  amazon.aws.ec2_instance_info:
+    region: "{{ aws_region }}"
+    instance_ids: "{{ instance_id }}"
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
+  register: instance_status
+  until: instance_status.instances[0].state.name == "stopped"
+  retries: 10
+  delay: 10
+  delegate_to: localhost
+
+- name: Create new volume from the latest snapshot
+  amazon.aws.ec2_vol:
+    region: "{{ aws_region }}"
+    snapshot: "{{ snapshot_id }}"
+    availability_zone: "{{ availability_zone }}"
+    volume_type: "gp3"
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
+  register: new_volume
+  delegate_to: localhost
+
+- name: Wait for new volume to be available
+  amazon.aws.ec2_vol_info:
+    region: "{{ aws_region }}"
+    filters:
+      volume_id: "{{ new_volume.volume_id }}"
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
+  register: new_volume_status
+  until: new_volume_status.volumes[0].status == "available"
+  retries: 10
+  delay: 5
+  delegate_to: localhost
+
+- name: Detach old root volume
+  amazon.aws.ec2_vol:
+    region: "{{ aws_region }}"
+    id: "{{ old_root_volume_id }}"
+    instance: "{{ instance_id }}"
+    state: absent
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
+  delegate_to: localhost
+
+- name: Attach new volume
+  amazon.aws.ec2_vol:
+    region: "{{ aws_region }}"
+    instance: "{{ instance_id }}"
+    id: "{{ new_volume.volume_id }}"
+    device_name: "{{ device_name }}"
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
+  delegate_to: localhost
+
+- name: Start the instance
+  amazon.aws.ec2_instance:
+    region: "{{ aws_region }}"
+    instance_ids: "{{ instance_id }}"
+    state: running
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
+  delegate_to: localhost
+
+- name: Wait for instance to run
+  amazon.aws.ec2_instance_info:
+    region: "{{ aws_region }}"
+    instance_ids: "{{ instance_id }}"
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
+  register: instance_status
+  until: instance_status.instances[0].state.name == "running"
+  retries: 10
+  delay: 10
+  delegate_to: localhost
+
+- name: Print recovery status
+  ansible.builtin.debug:
+    msg: "Instance {{ instance_id }} is running with restored volume {{ new_volume.volume_id }} (from snapshot {{ snapshot_id }})"

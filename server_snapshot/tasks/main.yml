@@ -27,7 +27,7 @@
   register: instance_info
   delegate_to: localhost
 
-- name: Create Snapshot of the Root Volume
+- name: Create Snapshot of the Attached Volumes
   amazon.aws.ec2_snapshot:
     volume_id: "{{ item }}"
     description: "Snapshot for volume {{ item }} of instance {{ instance_id }}"
