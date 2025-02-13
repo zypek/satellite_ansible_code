@@ -15,6 +15,12 @@
     - role: snapshot_cleanup
       tags:
         - snapshot_cleanup
+    - role: cluster_unstandby_node
+      tags:
+        - cluster_unstandby_node
+    - role: cluster_standby_node
+      tags:
+        - cluster_standby_node
     - role: cluster_backup
       tags:
         - cluster_backup
