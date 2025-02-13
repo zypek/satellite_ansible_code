@@ -15,6 +15,12 @@
     - role: snapshot_cleanup
       tags:
         - snapshot_cleanup
+    - role: cluster_backup
+      tags:
+        - cluster_backup
+    - role: cluster_verify
+      tags:
+        - cluster_verify
     - role: cluster_update
       tags:
         - cluster_update

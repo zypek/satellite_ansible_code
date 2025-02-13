@@ -1,0 +1,93 @@
+---
+- name: Gather service facts
+  ansible.builtin.service_facts:
+
+- name: Ensure Pacemaker and Corosync services are running
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services['pacemaker.service'].state == 'running'
+      - ansible_facts.services['corosync.service'].state == 'running'
+    fail_msg: "Pacemaker or Corosync services are not running. Backup cannot proceed."
+
+- name: Check if pcs command is available
+  ansible.builtin.command: which pcs
+  register: pcs_check
+  ignore_errors: true
+
+- name: Fail if pcs command is not available
+  ansible.builtin.fail:
+    msg: "The 'pcs' command is not installed. Please install it before proceeding."
+  when: pcs_check.rc != 0
+
+- name: Ensure backup directory exists
+  ansible.builtin.file:
+    path: "{{ cluster_backup_dir }}"
+    state: directory
+    mode: '0755'
+
+- name: Generate timestamp for backup file
+  ansible.builtin.set_fact:
+    backup_file_timestamp: "{{ lookup('pipe', 'date +%Y%m%d_%H%M%S') }}"
+
+- name: Check if backup file already exists
+  ansible.builtin.stat:
+    path: "{{ cluster_backup_dir }}/pcs_backup_{{ backup_file_timestamp }}.tar.bz2"
+  register: existing_backup_check
+
+- name: Fail if backup file already exists
+  ansible.builtin.fail:
+    msg: "Backup file {{ cluster_backup_dir }}/pcs_backup_{{ backup_file_timestamp }}.tar.bz2 already exists."
+  when: existing_backup_check.stat.exists
+
+- name: Run pcs config backup with timestamped filename
+  ansible.builtin.command: "pcs config backup {{ cluster_backup_dir }}/pcs_backup_{{ backup_file_timestamp }}"
+  args:
+    creates: "{{ cluster_backup_dir }}/pcs_backup_{{ backup_file_timestamp }}.tar.bz2"
+  run_once: true
+  register: cl_backup_check
+
+- name: Get stats of the backup file
+  ansible.builtin.stat:
+    path: "{{ cluster_backup_dir }}/pcs_backup_{{ backup_file_timestamp }}.tar.bz2"
+  register: st_backup_check
+  when: cl_backup_check.rc == 0
+
+- name: Verify backup file integrity
+  ansible.builtin.command: >
+    tar -tjf "{{ cluster_backup_dir }}/pcs_backup_{{ backup_file_timestamp }}.tar.bz2"
+  register: backup_integrity_check
+  when: st_backup_check.stat.exists
+
+- name: Fail if backup file is corrupted
+  ansible.builtin.fail:
+    msg: "Backup file {{ cluster_backup_dir }}/pcs_backup_{{ backup_file_timestamp }}.tar.bz2 is corrupted."
+  when: backup_integrity_check.rc != 0
+
+- name: Assert that the backup file has been successfully created
+  ansible.builtin.assert:
+    that:
+      - st_backup_check.stat.exists
+    fail_msg: "Backup failed. File {{ cluster_backup_dir }}/pcs_backup_{{ backup_file_timestamp }}.tar.bz2 does not exist"
+    success_msg: "Backup Successful. File {{ cluster_backup_dir }}/pcs_backup_{{ backup_file_timestamp }}.tar.bz2 exists"
+  when: cl_backup_check.rc == 0
+
+- name: Remove old backups (older than 7 days)
+  ansible.builtin.find:
+    paths: "{{ cluster_backup_dir }}"
+    patterns: "pcs_backup_*.tar.bz2"
+    age: "7d"
+  register: old_backups
+
+- name: Delete old backups
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ old_backups.files }}"
+  when: old_backups.matched > 0
+
+- name: Log backup status
+  ansible.builtin.lineinfile:
+    path: /var/log/pacemaker_backup.log
+    line: "Backup {{ 'succeeded' if st_backup_check.stat.exists else 'failed' }} at {{ ansible_date_time.iso8601 }}"
+    create: yes
+

@@ -36,6 +36,8 @@ ha_system_services_list:
 system_services_list:
       - pacemaker
       - corosync
+# Variables for cluster_backup role
+cluster_backup_dir: '/tmp'
 # Variables for server_restore role
 instance_id: "i-06f2ae9866ae9448b"  # Replace with your instance ID
 
