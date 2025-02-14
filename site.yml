@@ -3,6 +3,10 @@
   hosts: all
   become: true
   roles:
+    - role: cluster_node_stop
+      tags: cluster_node_stop
+    - role: cluster_node_start
+      tags: cluster_node_start
     - role: aws_tag_create
       tags: aws_tag_create
     - role: create_satellite_tag_values

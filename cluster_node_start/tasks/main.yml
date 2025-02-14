@@ -1,0 +1,31 @@
+---
+- name: Gather facts (including hostname)
+  ansible.builtin.setup:
+
+- name: Run pcs cluster start
+  ansible.builtin.command: "pcs cluster start"
+  register: cluster_start_result
+  ignore_errors: true
+
+- name: Fail if pcs cluster start command failed
+  ansible.builtin.fail:
+    msg: "Failed to start the cluster. Error: {{ cluster_start_result.stderr }}"
+  when: cluster_start_result.rc != 0
+
+- name: Pause for a while
+  ansible.builtin.pause:
+    seconds: 10
+
+- name: Verify if Cluster Services are Started
+  ansible.builtin.service_facts:
+
+- name: Check each service status
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services[item + '.service'].state == 'running'
+    fail_msg: "{{ item }} service is not running!"
+    success_msg: "{{ item }} service is running."
+  loop: "{{ system_services_list }}"
+  loop_control:
+    label: "{{ item }}"
+
