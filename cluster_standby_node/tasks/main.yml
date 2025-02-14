@@ -6,6 +6,17 @@
   ansible.builtin.set_fact:
     current_hostname: "{{ ansible_facts['hostname'] }}"
 
+- name: Retrieve Instance ID from Metadata
+  ansible.builtin.uri:
+    url: http://169.254.169.254/latest/meta-data/local-hostname
+#    url: http://169.254.169.254/latest/meta-data/hostname
+    return_content: true
+  register: instance_metadata
+
+- name: Set Instance ID as Fact
+  ansible.builtin.set_fact:
+    instance_id: "{{ instance_metadata.content }}"
+
 - name: Run crm_node -l to get cluster node list
   ansible.builtin.command: crm_node -l
   register: crm_node_output
@@ -31,6 +42,20 @@
   ansible.builtin.set_fact:
     cluster_node_name: "{{ cluster_nodes | select('search', current_hostname) | first }}"
 
+- name: Check cluster nodes' standby status
+  ansible.builtin.command: pcs status nodes
+  register: pcs_status_output
+  changed_when: false
+
+- name: Extract the Standby line
+  ansible.builtin.set_fact:
+    standby_nodes: "{{ pcs_status_output.stdout_lines | select('search', 'Standby:') | first }}"
+  run_once: true
+
+- name: Verify if current node is in standby mode
+  ansible.builtin.set_fact:
+    is_in_standby: "{{ cluster_node_name in standby_nodes }}"
+
 - name: Verify Status of the HANA resources
   ansible.builtin.command: pcs resource status "{{ hana_pcs_resource }}"
   register: fence_hana_status
@@ -46,33 +71,35 @@
     groups: dynamic_slaves
   loop: "{{ slave_servers }}"
 
-- name: CCheck
-  debug:
-    var: master_server
 - name: Verify if the node is a Slave
   ansible.builtin.assert:
     that:
       - ( cluster_node_name in groups.dynamic_slaves ) and ( cluster_node_name not in master_server )
     fail_msg: "{{ cluster_node_name }} is not in a slave list. Exiting"
     success_msg: "{{ cluster_node_name }} is in a slave list. Proceeding"
+  when: not is_in_standby
   
 - name: Run pcs node standby
   ansible.builtin.command: "pcs node standby {{ cluster_node_name }}"
   register: cluster_node_standby
+  when: not is_in_standby
 
 - name: Pause for a while
   ansible.builtin.pause:
     seconds: 10
+  when: not is_in_standby
 
 - name: Check cluster nodes' standby status
   ansible.builtin.command: pcs status nodes
   register: pcs_status_output
   changed_when: false
+  when: not is_in_standby
 
 - name: Extract the Standby line
   ansible.builtin.set_fact:
     standby_nodes: "{{ pcs_status_output.stdout_lines | select('search', 'Standby:') | first }}"
   run_once: true
+  when: not is_in_standby
 
 - name: Verify if current node is in standby mode
   ansible.builtin.set_fact:
