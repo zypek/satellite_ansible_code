@@ -44,3 +44,7 @@ instance_id: "i-06f2ae9866ae9448b"  # Replace with your instance ID
 # Variables for AWS Roles
 aws_role: AcoeCICDRole
 aws_account_no: 273354650151
+
+# Variables for the Tags
+tag_value: "Summary To Add to the Tag's value Something"
+tag_key_value: "Server_Name_Update"

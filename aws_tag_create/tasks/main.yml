@@ -1,0 +1,48 @@
+---
+- name: Assume Role
+  amazon.aws.sts_assume_role:
+    role_arn: "arn:aws:iam::{{ aws_account_no }}:role/{{ aws_role }}"
+    role_session_name: "assumeRoleSession"
+    region: "{{ aws_region }}"
+  register: assumed_role
+  delegate_to: localhost
+
+- name: Retrieve Instance ID from Metadata
+  ansible.builtin.uri:
+    url: http://169.254.169.254/latest/meta-data/instance-id
+    return_content: true
+  register: instance_metadata
+
+- name: Set Instance ID as Fact
+  ansible.builtin.set_fact:
+    instance_id: "{{ instance_metadata.content }}"
+
+- name: Debug the update summary (ensure it is within 256 characters)
+  ansible.builtin.debug:
+    msg: "Update summary is: {{ tag_value }} ({{ tag_value | length }} characters)"
+
+- name: Create tag key and value facts
+  ansible.builtin.set_fact:
+    backup_tag_key: "{{ tag_key_value }}_{{ instance_id }}_{{ ansible_date_time.epoch }}"
+    backup_tag_value: "{{ tag_value }}"
+
+- name: Create tag on an instance
+  amazon.aws.ec2_tag:
+    resource: "{{ instance_id }}"
+    region: "{{ aws_region }}"
+    tags: "{{ { backup_tag_key: backup_tag_value } }}"
+    state: present
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
+  delegate_to: localhost
+
+- name: Get current instance tags
+  amazon.aws.ec2_instance_info:
+    instance_ids: "{{ instance_id }}"
+    region: "{{ aws_region }}"
+    access_key: "{{ assumed_role.sts_creds.access_key }}"
+    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    session_token: "{{ assumed_role.sts_creds.session_token }}"
+  register: instance_info
+  delegate_to: localhost

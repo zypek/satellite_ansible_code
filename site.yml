@@ -3,15 +3,17 @@
   hosts: all
   become: true
   roles:
+    - role: aws_tag_create
+      tags: aws_tag_create
+    - role: create_satellite_tag_values
+      tags: create_satellite_tag_values
+    - role: aws_tag_delete
+      tags: aws_tag_delete
     - role: server_snapshot
-      tags:
-        - server_snapshot
+      tags: server_snapshot
     - role: server_update
       tags:
         - server_update
-    - role: create_update_tag
-      tags:
-        - create_update_tag
     - role: snapshot_cleanup
       tags:
         - snapshot_cleanup
