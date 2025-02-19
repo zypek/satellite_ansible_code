@@ -8,7 +8,7 @@
     content_view: "{{ satellite_content_view }}"
     organization: "{{ satellite_deployment_organization }}"
     validate_certs: false
-    content_view_filter: "Errata"
+    content_view_filter: "{{ errata_filter_name }}"
     state: present
     date_type: updated
     types:

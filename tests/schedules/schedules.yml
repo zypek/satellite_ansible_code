@@ -1,0 +1,16 @@
+---
+controller_schedules:
+  - name: Friday-Schedule
+    description: Friday-Schedule
+    unified_job_template: TMPL-WOW-NEW-TEAMS
+    organization: MOS-TEST
+    rrule: "DTSTART;TZID=Australia/NSW:20251212T233000 RRULE:FREQ=WEEKLY;INTERVAL=1;BYDAY=FR"
+    ask_scm_branch_on_launch: false
+    ask_variables_on_launch: true
+    ask_inventory_on_launch: false
+    allow_simultaneous: true
+    # Note that this example requires the relevant ask_*_on_launch to be true
+    extra_data:
+      scheduled: true
+      organization_id: MOS-TEST
+      team_name: team_cba_admin

@@ -11,13 +11,14 @@ satellite_deployment_organization: 'RedHat'
 satellite_deployment_admin_username: 'admin'
 satellite_deployment_admin_password: redhat123
 satellite_lifecycle: [NonProd, PreProd, Prod]
-satellite_content_view: CV-Comp
+satellite_content_view: test
 satellite_deployment_server: "https://rhsatellite.example.org"
 satellite_kat_cert: "katello-ca-consumer-latest.noarch.rpm"
 #satellite_base_url: "rhsatpool1.prod.cba"
 sat_activation_key: "ak-rhel8-nonprod"
 yum_repo_dir: "/etc/yum.repos.d"
 satellite_content_view_version_cleanup_keep: 0
+errata_filter_name: "filter-security-bugfix"
 errata_end_date: "2025-02-05"
 
 # Variables for satellite_upload role

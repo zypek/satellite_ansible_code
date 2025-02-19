@@ -1,0 +1,45 @@
+---
+- name: Manage AWS instance snapshot, updates, and verification
+  hosts: all
+  gather_facts: false
+  become: true
+  vars:
+    aws_region: "ap-southeast-2"
+    satellite_deployment_organization: 'RedHat'
+    satellite_deployment_admin_username: 'admin'
+    satellite_deployment_admin_password: redhat123
+    satellite_lifecycle: [NonProd, PreProd, Prod]
+    satellite_content_view: test
+    satellite_deployment_server: "https://rhsatellite.example.org"
+    satellite_kat_cert: "katello-ca-consumer-latest.noarch.rpm"
+    #satellite_base_url: "rhsatpool1.prod.cba"
+    sat_activation_key: "ak-rhel8-nonprod"
+    system_services_list:
+      - sshd
+      - rsyslog
+      - pcsd
+      - pacemaker
+      - corosync
+  tasks:
+  - name: "Verify if the host has been already registered to the Satellite"
+    theforeman.foreman.registration_command:
+      username: "{{ satellite_deployment_admin_username }}"
+      password: "{{ satellite_deployment_admin_password }}"
+      server_url: "{{ satellite_deployment_server }}"
+      organization: "{{ satellite_deployment_organization }}"
+      validate_certs: false
+      activation_keys: ak-rhel8-nonprod
+      force: true
+      ignore_subman_errors: true
+      insecure: true
+    register: sat_host_reg
+    delegate_to: localhost
+
+  - name: Test
+    debug:
+      var: sat_host_reg
+
+
+  - name: Register
+    ansible.builtin.shell:
+      cmd: "{{ sat_host_reg.registration_command }}"

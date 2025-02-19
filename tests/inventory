@@ -1,1 +1,2 @@
-aap01.example.org ansible_connection=local
+#aap01.example.org ansible_connection=local
+nodez02n04.example.org
