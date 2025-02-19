@@ -1,38 +1,64 @@
 Role Name
 =========
 
-A brief description of the role goes here.
+# cluster_verify
 
-Requirements
+## Description
 ------------
+This Ansible role verifies that all critical cluster services (Pacemaker, Corosync, HANA resources, and fencing resources) are running and healthy. It checks for any lost nodes, ensures the fencing resource is active, and confirms that the HANA resource is promoted on the master node.
 
-Any pre-requisites that may not be covered by Ansible itself or the role should be mentioned here. For instance, if the role uses the EC2 module, it may be a good idea to mention in this section that the boto package is required.
+## Requirements
+------------
+The following Ansible collections are required:
 
-Role Variables
+- `ansible.builtin`
+
+The target system must have:
+- `crm_node` and `pcs` commands available for cluster operations.
+- Properly configured Pacemaker/Corosync cluster.
+
+## Role Variables
 --------------
+| Variable Name             | Description                                                | Default Value | Type   |
+|---------------------------|------------------------------------------------------------|--------------|--------|
+| `ha_system_services_list` | List of cluster-related services to verify are running    | None         | List   |
+| `fence_resource_name`     | Name of the fencing resource in the cluster               | None         | String |
+| `hana_pcs_resource`       | Name of the HANA PCS resource to check status for         | None         | String |
 
-A description of the settable variables for this role should go here, including any variables that are in defaults/main.yml, vars/main.yml, and any variables that can/should be set via parameters to the role. Any variables that are read from other roles and/or the global scope (ie. hostvars, group vars, etc.) should be mentioned here as well.
-
-Dependencies
+## Dependencies
 ------------
+This role assumes that the `pcs`, `crm_node`, `pacemaker`, and `corosync` packages (and services) are available and installed on the target system.
 
-A list of other roles hosted on Galaxy should go here, plus any details in regards to parameters that may need to be set for other roles, or variables that are used from other roles.
-
-Example Playbook
+## Example Playbook
 ----------------
 
-Including an example of how to use your role (for instance, with variables passed in as parameters) is always nice for users too:
+Including an example of how to use this role:
 
-    - hosts: servers
-      roles:
-         - { role: username.rolename, x: 42 }
+```yaml
+---
+- name: Verify Cluster Health
+  hosts: all
+  become: true
+  roles:
+    - role: cluster_verify
+      tags: cluster_verify
+```
 
-License
--------
+Alternatively: 
 
-BSD
+```yaml
+---
+- hosts: servers
+  become: true
+  tasks:
+  - name: Include cluster_verify role
+    ansible.builtin.include_role:
+      name: cba.cbc_sap_os_config.cluster_verify
+    vars:
+      ha_system_services_list:
+        - pacemaker
+        - corosync
+      fence_resource_name: fence_device
+      hana_pcs_resource: hana_clone
 
-Author Information
-------------------
-
-An optional section for the role authors to include contact information, or a website (HTML is not allowed).
+```

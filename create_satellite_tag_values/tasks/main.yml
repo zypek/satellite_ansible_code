@@ -51,10 +51,3 @@
   ansible.builtin.set_fact:
     tag_key_value: "Server_update_{{ instance_id }}_{{ ansible_date_time.epoch }}"
     tag_value: "{{ update_summary }}"
-
-- name: Debu
-  debug:
-    var: tag_key_value
-- name: Debu
-  debug:
-    var: tag_value

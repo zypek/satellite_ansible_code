@@ -1,44 +1,76 @@
-theforeman.foreman.content_view_version_cleanup
-===============================================
+Role Name
+=========
 
-Clean up unused Content View Versions.
+# content_view_version_cleanup
 
-This role will remove any unused versions of your Content Views and
-Composite Content Views.
+## Description
+------------
+This Ansible role cleans up old, unused Content View (CV) versions in a Red Hat Satellite environment, both for composite and non-composite content views. It retains a configurable number of the most recent versions, determined by `satellite_content_view_version_cleanup_keep`, and deletes all older versions that are not currently promoted in a lifecycle environment.
 
-Unused versions are those that match the following criteria:
-* not published to any Lifecycle Environment
-* not published as part of any Composite Content View
-* not part of any Composite Content View Version
+> **Note:** The role is looking for ALL the Content Views and prunes old versions for ALL of them
 
-This role will first clean Composite Content Views, to avoid leaving
-unused versions of regular Content Views behind.
 
-Role Variables
+## Requirements
+------------
+The following Ansible collections are required:
+
+- `redhat.satellite`
+- `redhat.satellite_operations`
+- `ansible.builtin`
+
+The target environment must have:
+- Proper credentials to authenticate and manage content views in Satellite.
+- Enough privileges to delete CV versions.
+
+## Role Variables
 --------------
+| Variable Name                                    | Description                                                                   | Default Value | Type   |
+|--------------------------------------------------|-------------------------------------------------------------------------------|--------------|--------|
+| `satellite_deployment_server`                    | The Satellite server URL                                                      | None         | String |
+| `satellite_deployment_admin_username`            | Username for Satellite server authentication                                  | None         | String |
+| `satellite_deployment_admin_password`            | Password for Satellite server authentication                                  | None         | String |
+| `satellite_deployment_organization`             | The organisation name in Satellite                                           | None         | String |
+| `satellite_content_view_version_cleanup_keep`    | The number of Content View versions to keep (must be >= 0)                   | None         | Integer |
 
-This role supports the [Common Role Variables](https://github.com/theforeman/foreman-ansible-modules/blob/develop/README.md#common-role-variables).
+## Dependencies
+------------
+- The Satellite server must already be set up with the content views you wish to manage.
+- The user must have permissions to list and delete content view versions.
 
-### Required
-
-- `foreman_content_view_version_cleanup_keep`: How many unused versions to keep.
-
-### Optional
-
-- `foreman_content_view_version_cleanup_search`: Limit the cleaned content views using a search string (example: `name ~ SOE`).
-  When using Composite Content Views, both the composite and the non-composite ones need to match this search to be properly cleaned up by this role.
-
-Example Playbook
+## Example Playbook
 ----------------
 
+### Using the Role
 ```yaml
-- hosts: localhost
+---
+- name: Cleanup old Content View versions
+  hosts: all
+  become: false
   roles:
-    - role: theforeman.foreman.content_view_version_cleanup
+    - role: content_view_version_cleanup
       vars:
-        foreman_server_url: https://foreman.example.com
-        foreman_username: "admin"
-        foreman_password: "changeme"
-        foreman_organization: "Default Organization"
-        foreman_content_view_version_cleanup_keep: 10
+        satellite_deployment_server: "https://satellite.example.com"
+        satellite_deployment_admin_username: "admin"
+        satellite_deployment_admin_password: "redhat"
+        satellite_deployment_organization: "sap"
+        satellite_content_view_version_cleanup_keep: 2
+      tags: content_view_version_cleanup
+
+```
+
+Alternatively: 
+
+```yaml
+---
+- hosts: servers
+  tasks:
+    - name: Publish and Promote the Content View
+      ansible.builtin.include_role:
+        name: cba.cbc_sap_os_config.content_view_version_cleanup
+      vars:
+        satellite_deployment_admin_username: "admin"
+        satellite_deployment_admin_password: "redhat"
+        satellite_deployment_server: "https://satellite.example.com"
+        satellite_content_view: "rhel8_comp_cv"
+        satellite_deployment_organization: "sap"
 ```

@@ -1,38 +1,80 @@
 Role Name
 =========
 
-A brief description of the role goes here.
+# create_satellite_tag_values
 
-Requirements
+## Description
 ------------
+This Ansible role connects to a Red Hat Satellite server (using the [theforeman.foreman](https://galaxy.ansible.com/theforeman/foreman) collection) to retrieve a specified Content View (CV) with its component content views. It then constructs a composite structure of the CV and all components, finally creating two facts:
 
-Any pre-requisites that may not be covered by Ansible itself or the role should be mentioned here. For instance, if the role uses the EC2 module, it may be a good idea to mention in this section that the boto package is required.
+- `tag_key_value`: A unique key for tagging (e.g., `Server_update_<instance_id>_<epoch_time>`).
+- `tag_value`: A compact update summary string describing the content view and its components.
 
-Role Variables
+## Requirements
+------------
+The following Ansible collections are required:
+
+- `theforeman.foreman`
+- `redhat.satellite`
+- `redhat.satellite_operations`
+- `ansible.builtin`
+
+The target environment must have:
+- Credentials for the Satellite/Foreman server.
+- The Composite Content View name to query. (rhel8_sap_cv)
+- Organisation to which the Content View belongs. (sap)
+
+## Role Variables
 --------------
+| Variable Name                          | Description                                            | Default Value | Type   |
+|---------------------------------------|--------------------------------------------------------|--------------|--------|
+| `satellite_deployment_admin_username` | Username with rights to query the Satellite server     | None         | String |
+| `satellite_deployment_admin_password` | Password for the Satellite server user                | None         | String |
+| `satellite_deployment_server`         | URL of the Satellite/Foreman server                   | None         | String |
+| `satellite_content_view`              | Name of the Content View to look up                   | None         | String |
+| `satellite_deployment_organization`   | The organisation name where the Content View resides   | None         | String |
 
-A description of the settable variables for this role should go here, including any variables that are in defaults/main.yml, vars/main.yml, and any variables that can/should be set via parameters to the role. Any variables that are read from other roles and/or the global scope (ie. hostvars, group vars, etc.) should be mentioned here as well.
+> **Note:** The role also uses `instance_id` and `ansible_date_time` facts to construct tagging information. These are typically discovered automatically by Ansible on most systems.
 
-Dependencies
+## Dependencies
 ------------
+- A valid Red Hat Satellite/Foreman setup.
+- The user must have permissions to read content views and components.
 
-A list of other roles hosted on Galaxy should go here, plus any details in regards to parameters that may need to be set for other roles, or variables that are used from other roles.
-
-Example Playbook
+## Example Playbook
 ----------------
 
-Including an example of how to use your role (for instance, with variables passed in as parameters) is always nice for users too:
+Including an example of how to use this role:
 
-    - hosts: servers
-      roles:
-         - { role: username.rolename, x: 42 }
+```yaml
+---
+- name: Gather Satellite CV data and create tagging key/value
+  hosts: all
+  become: false
+  roles:
+    - role: create_satellite_tag_values
+      vars:
+        satellite_deployment_admin_username: "admin"
+        satellite_deployment_admin_password: "redhat"
+        satellite_deployment_server: "https://satellite.example.com"
+        satellite_content_view: "RHEL_CV"
+        satellite_deployment_organization: "Default_Organization"
+      tags: create_satellite_tag_values
+```
 
-License
--------
+Alternatively:
 
-BSD
-
-Author Information
-------------------
-
-An optional section for the role authors to include contact information, or a website (HTML is not allowed).
+```yaml
+---
+- hosts: servers
+  tasks:
+    - name: Include create_satellite_tag_values role
+      ansible.builtin.include_role:
+        name: cba.cbc_sap_os_config.create_satellite_tag_values
+      vars:
+        satellite_deployment_admin_username: "admin"
+        satellite_deployment_admin_password: "redhat"
+        satellite_deployment_server: "https://satellite.example.com"
+        satellite_content_view: "rhel8_comp_cv"
+        satellite_deployment_organization: "sap"
+```

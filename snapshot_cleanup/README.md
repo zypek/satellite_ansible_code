@@ -1,38 +1,73 @@
 Role Name
 =========
 
-A brief description of the role goes here.
+# snapshot_cleanup
 
-Requirements
+## Description
 ------------
+This Ansible role assumes an AWS IAM role to gather information about all EBS volumes attached to the current instance. It then identifies snapshots older than one week for each volume and deletes them—while preserving:
+1. The latest snapshot overall.
+2. The newest snapshot among the old snapshots.
 
-Any pre-requisites that may not be covered by Ansible itself or the role should be mentioned here. For instance, if the role uses the EC2 module, it may be a good idea to mention in this section that the boto package is required.
+This ensures that at least two snapshots (the latest one overall and the newest older snapshot) remain for each volume, preventing complete loss of older restore points.
 
-Role Variables
+## Requirements
+------------
+The following Ansible collections are required:
+
+- `amazon.aws`  
+- `ansible.builtin`  
+
+Your environment should also have:
+- The ability to assume the specified AWS IAM role (`sts:AssumeRole`).
+- Sufficient permissions to list, describe, and delete EC2 snapshots.
+
+## Role Variables
 --------------
+| Variable Name    | Description                                                                 | Default Value | Type   |
+|------------------|-----------------------------------------------------------------------------|--------------|--------|
+| `aws_account_no` | The AWS account number where the IAM role is located.                        | None         | String |
+| `aws_role`       | The IAM role to assume for AWS operations (e.g., snapshot management).       | None         | String |
+| `aws_region`     | The AWS region of the instance/volumes. <br>*Automatically discovered from the instance metadata if not provided* | None | String |
 
-A description of the settable variables for this role should go here, including any variables that are in defaults/main.yml, vars/main.yml, and any variables that can/should be set via parameters to the role. Any variables that are read from other roles and/or the global scope (ie. hostvars, group vars, etc.) should be mentioned here as well.
+> **Note:** `instance_id` and `region` may be dynamically retrieved from the instance metadata service.  
+> **Note:** The role uses `ansible_date_time.epoch` to compute "one week ago" for snapshot cleanup logic.
 
-Dependencies
+## Dependencies
 ------------
+This role assumes:
+- It’s being executed on an EC2 instance capable of reaching the metadata service `169.254.169.254`.
+- The `amazon.aws.sts_assume_role`, `amazon.aws.ec2_snapshot_info`, `amazon.aws.ec2_snapshot`, and `amazon.aws.ec2_instance_info` modules can be used successfully with the provided credentials.
 
-A list of other roles hosted on Galaxy should go here, plus any details in regards to parameters that may need to be set for other roles, or variables that are used from other roles.
-
-Example Playbook
+## Example Playbook
 ----------------
 
-Including an example of how to use your role (for instance, with variables passed in as parameters) is always nice for users too:
+### Using the Role Directly
+```yaml
+---
+- name: Cleanup Old EBS Snapshots
+  hosts: all
+  become: false
+  roles:
+    - role: snapshot_cleanup
+      vars:
+        aws_account_no: "123456789012"
+        aws_role: "SnapshotCleanupRole"
+        # aws_region is optional; the role will detect it via instance metadata
+      tags: snapshot_cleanup
+```
 
-    - hosts: servers
-      roles:
-         - { role: username.rolename, x: 42 }
+Alternatively: 
 
-License
--------
-
-BSD
-
-Author Information
-------------------
-
-An optional section for the role authors to include contact information, or a website (HTML is not allowed).
+```yaml
+---
+- hosts: servers
+  tasks:
+    - name: Include snapshot_cleanup role
+      ansible.builtin.include_role:
+        name: cba.cbc_sap_os_config.snapshot_cleanup
+      vars:
+        aws_account_no: "123456789012"
+        aws_role: "SnapshotCleanupRole"
+        # aws_region is optional; the role will detect it via instance metadata
+```

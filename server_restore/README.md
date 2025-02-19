@@ -1,38 +1,71 @@
 Role Name
 =========
 
-A brief description of the role goes here.
+# server_restore
 
-Requirements
+## Description
 ------------
+This Ansible role stops an AWS EC2 instance, checks for the most recent snapshots of each attached EBS volume (and fails if none are found for any attached volume), creates new volumes from these snapshots, and reattaches them to the instance. It then restarts the instance with the restored volumes.
 
-Any pre-requisites that may not be covered by Ansible itself or the role should be mentioned here. For instance, if the role uses the EC2 module, it may be a good idea to mention in this section that the boto package is required.
+## Requirements
+------------
+The following Ansible collections are required:
 
-Role Variables
+- `amazon.aws`
+- `ansible.builtin`
+
+The target system or control node must have:
+- Valid AWS credentials with permission to assume the specified role and manage EC2 instances/volumes.
+- Network access to the instance metadata service if running on EC2.
+
+## Role Variables
 --------------
+| Variable Name     | Description                                                                 | Default Value | Type   |
+|-------------------|-----------------------------------------------------------------------------|--------------|--------|
+| `aws_account_no`  | The AWS account number where the IAM role is located.                        | None         | String |
+| `aws_role`        | The name of the IAM role to assume for AWS operations.                       | None         | String |
+| `aws_region`      | The AWS region where the instance and volumes are located.                   | None         | String |
 
-A description of the settable variables for this role should go here, including any variables that are in defaults/main.yml, vars/main.yml, and any variables that can/should be set via parameters to the role. Any variables that are read from other roles and/or the global scope (ie. hostvars, group vars, etc.) should be mentioned here as well.
+> **Note:** `instance_id`, `availability_zone`, and `block_device_snapshots` are set automatically during role execution based on the instance's metadata and discovered volumes.
 
-Dependencies
+## Dependencies
 ------------
+This role assumes:
+- The `sts:AssumeRole` action is allowed for the specified role.
+- EC2 permissions to describe, stop, start, create volumes, and attach/detach volumes.
+- The `aws_region` variable can be discovered from instance metadata if not provided explicitly.
 
-A list of other roles hosted on Galaxy should go here, plus any details in regards to parameters that may need to be set for other roles, or variables that are used from other roles.
-
-Example Playbook
+## Example Playbook
 ----------------
 
-Including an example of how to use your role (for instance, with variables passed in as parameters) is always nice for users too:
+### Using the Role in a Playbook
 
-    - hosts: servers
-      roles:
-         - { role: username.rolename, x: 42 }
+```yaml
+---
+- name: Restore EBS Volumes from Snapshots
+  hosts: all
+  become: false
+  roles:
+    - role: server_restore
+      vars:
+        aws_account_no: "123456789012"
+        aws_role: "SomeIAMRole"
+        aws_region: "ap-southeast-2"
+      tags: server_restore
 
-License
--------
+```
 
-BSD
+Alternatively: 
 
-Author Information
-------------------
-
-An optional section for the role authors to include contact information, or a website (HTML is not allowed).
+```yaml
+---
+- hosts: servers
+  tasks:
+    - name: Include server_restore role
+      ansible.builtin.include_role:
+        name: cba.cbc_sap_os_config.server_restore
+      vars:
+        aws_account_no: "123456789012"
+        aws_role: "SomeIAMRole"
+        aws_region: "ap-southeast-2"
+```

@@ -1,38 +1,72 @@
 Role Name
 =========
 
-A brief description of the role goes here.
+# aws_tag_delete
+
+Description
+------------
+This Ansible role assumes an AWS IAM role, retrieves the instance ID, and applies a custom tag to an EC2 instance.
 
 Requirements
 ------------
 
-Any pre-requisites that may not be covered by Ansible itself or the role should be mentioned here. For instance, if the role uses the EC2 module, it may be a good idea to mention in this section that the boto package is required.
+The following ansible collectsions are required:
+
+aws.amazon
+cloud.aws_ops
+redhat.satellite
+redhat.satellite_operations
 
 Role Variables
 --------------
 
-A description of the settable variables for this role should go here, including any variables that are in defaults/main.yml, vars/main.yml, and any variables that can/should be set via parameters to the role. Any variables that are read from other roles and/or the global scope (ie. hostvars, group vars, etc.) should be mentioned here as well.
+
+| Variable Name      | Description                                           | Default Value  | Type   |
+|--------------------|-------------------------------------------------------|---------------|--------|
+| `aws_account_no`  | AWS Account Number                                    | None          | String |
+| `aws_role`        | IAM Role to assume for tagging operations             | None          | String |
+| `aws_region`      | AWS Region where the instance is located              | None          | String |
+| `tag_key_value`   | Base key value for tagging                           | None          | String |
+| `tag_value`       | Value to assign to the tag                           | None          | String |
+
 
 Dependencies
 ------------
 
-A list of other roles hosted on Galaxy should go here, plus any details in regards to parameters that may need to be set for other roles, or variables that are used from other roles.
+# The following role can be used to populate the tag_key_value and tag_value variables if the aws_tag_create is used to create the tag containing the Satellite Content View versions 
+
+- role: create_satellite_tag_values
 
 Example Playbook
 ----------------
 
 Including an example of how to use your role (for instance, with variables passed in as parameters) is always nice for users too:
 
-    - hosts: servers
-      roles:
-         - { role: username.rolename, x: 42 }
+```yaml
+---
+- name: Update RHEL Servers
+  hosts: all
+  become: false
+  roles:
+    - role: aws_tag_delete
+      tags: aws_tag_delete
 
-License
--------
+```
 
-BSD
+Alternatively: 
 
-Author Information
-------------------
+```yaml
+---
+- hosts: servers
+  tasks:
+    - name: Amend no_proxy
+      ansible.builtin.include_role:
+        name: cba.cbc_sap_os_config.aws_tag_delete
+      vars:
+        aws_account_no: 
+        aws_role:
+  	aws_region:
+ 	tag_key_value:
+	tag_value: 
 
-An optional section for the role authors to include contact information, or a website (HTML is not allowed).
+```

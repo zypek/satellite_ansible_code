@@ -1,38 +1,52 @@
 Role Name
 =========
 
-A brief description of the role goes here.
+# cluster_node_stop
 
-Requirements
+Description
 ------------
-
-Any pre-requisites that may not be covered by Ansible itself or the role should be mentioned here. For instance, if the role uses the EC2 module, it may be a good idea to mention in this section that the boto package is required.
+This Ansible role stops a Pacemaker cluster, verifies if the cluster services are stopped, and asserts their status. It ensures a clean shutdown of the cluster and prevents services from running unexpectedly.
 
 Role Variables
 --------------
 
-A description of the settable variables for this role should go here, including any variables that are in defaults/main.yml, vars/main.yml, and any variables that can/should be set via parameters to the role. Any variables that are read from other roles and/or the global scope (ie. hostvars, group vars, etc.) should be mentioned here as well.
+
+| Variable Name        | Description                                            | Default Value | Type   |
+|----------------------|--------------------------------------------------------|--------------|--------|
+| `system_services_list` | List of cluster-related services to check | None | List  |
+
 
 Dependencies
 ------------
 
-A list of other roles hosted on Galaxy should go here, plus any details in regards to parameters that may need to be set for other roles, or variables that are used from other roles.
+This role assumes the `pcs` command is available on the target system.
 
 Example Playbook
 ----------------
 
-Including an example of how to use your role (for instance, with variables passed in as parameters) is always nice for users too:
+Including an example of how to use this role:
 
-    - hosts: servers
-      roles:
-         - { role: username.rolename, x: 42 }
+```yaml
+---
+- name: Stop Pacemaker Cluster
+  hosts: all
+  become: true
+  roles:
+    - role: cluster_node_stop
+      tags: cluster_node_stop
+```
 
-License
--------
+Alternatively: 
 
-BSD
-
-Author Information
-------------------
-
-An optional section for the role authors to include contact information, or a website (HTML is not allowed).
+```yaml
+---
+- hosts: servers
+  tasks:
+    - name: Amend no_proxy
+      ansible.builtin.include_role:
+        name: cba.cbc_sap_os_config.cluster_node_stop
+      vars:
+      	system_services_list:
+          - pacemaker
+          - corosync
+``` 

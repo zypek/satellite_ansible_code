@@ -1,38 +1,87 @@
 Role Name
 =========
 
-A brief description of the role goes here.
+# satellite_content_view
 
-Requirements
+## Description
 ------------
+This Ansible role publishes and promotes a specified Satellite Content View through one or more lifecycle environments on a Red Hat Satellite/Foreman instance. It uses the [theforeman.foreman](https://galaxy.ansible.com/theforeman/foreman) collection to manage the lifecycle and version of a given Content View.
 
-Any pre-requisites that may not be covered by Ansible itself or the role should be mentioned here. For instance, if the role uses the EC2 module, it may be a good idea to mention in this section that the boto package is required.
+## Requirements
+------------
+The following Ansible collections are required:
 
-Role Variables
+- `theforeman.foreman`
+- `redhat.satellite`
+- `redhat.satellite_operations`
+- `ansible.builtin`
+
+Additionally, the user/system must have:
+- Valid credentials to authenticate against the Satellite/Foreman server.
+- The target Content View (`satellite_content_view`) must exist.
+
+## Role Variables
 --------------
+| Variable Name                          | Description                                                     | Default Value | Type   |
+|---------------------------------------|-----------------------------------------------------------------|--------------|--------|
+| `satellite_deployment_admin_username` | Username with sufficient rights to manage Content Views         | None         | String |
+| `satellite_deployment_admin_password` | Password for the above user                                    | None         | String |
+| `satellite_deployment_server`         | The Satellite/Foreman server URL                                | None         | String |
+| `satellite_content_view`              | Name of the Content View to be published and promoted           | None         | String |
+| `satellite_deployment_organization`   | The organisation where the Content View resides                | None         | String |
+| `satellite_lifecycle`                 | A list of lifecycle environments to which the CV is promoted    | None         | List   |
 
-A description of the settable variables for this role should go here, including any variables that are in defaults/main.yml, vars/main.yml, and any variables that can/should be set via parameters to the role. Any variables that are read from other roles and/or the global scope (ie. hostvars, group vars, etc.) should be mentioned here as well.
+> **Note:** `validate_certs` is set to `false` in the example. If your Satellite/Foreman server uses valid certificates, set `validate_certs: true` for secure communication.
 
-Dependencies
+## Dependencies
 ------------
+This role assumes:
+- Theforeman/Foreman modules are available (via `theforeman.foreman` collection).
+- The specified Content View and lifecycle environments exist.
 
-A list of other roles hosted on Galaxy should go here, plus any details in regards to parameters that may need to be set for other roles, or variables that are used from other roles.
-
-Example Playbook
+## Example Playbook
 ----------------
 
-Including an example of how to use your role (for instance, with variables passed in as parameters) is always nice for users too:
+### Using the role directly
+```yaml
+---
+- name: Publish and Promote a Satellite Content View
+  hosts: all
+  become: false
+  roles:
+    - role: satellite_content_view
+      vars:
+        satellite_deployment_admin_username: "admin"
+        satellite_deployment_admin_password: "redhat"
+        satellite_deployment_server: "https://satellite.example.com"
+        satellite_content_view: "rhel8_comp_cv"
+        satellite_deployment_organization: "sap"
+        satellite_lifecycle:
+          - "Build"
+          - "NonProd"
+          - "PreProd"
+          - "Prod"
+      tags: satellite_content_view
+```
 
-    - hosts: servers
-      roles:
-         - { role: username.rolename, x: 42 }
+Alternatively: 
 
-License
--------
+```yaml
+---
+- hosts: servers
+  tasks:
+    - name: Publish and Promote the Content View
+      ansible.builtin.include_role:
+        name: cba.cbc_sap_os_config.satellite_content_view
+      vars:
+        satellite_deployment_admin_username: "admin"
+        satellite_deployment_admin_password: "redhat"
+        satellite_deployment_server: "https://satellite.example.com"
+        satellite_content_view: "rhel8_comp_cv"
+        satellite_deployment_organization: "sap"
+        satellite_lifecycle:
+          - "Build"
+          - "NonProd"
+          - "PreProd"
+          - "Prod"
 
-BSD
-
-Author Information
-------------------
-
-An optional section for the role authors to include contact information, or a website (HTML is not allowed).

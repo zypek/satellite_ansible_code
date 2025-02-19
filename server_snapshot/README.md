@@ -1,38 +1,68 @@
 Role Name
 =========
 
-A brief description of the role goes here.
+# server_snapshot
 
-Requirements
+## Description
 ------------
+This Ansible role assumes an AWS IAM role, retrieves the instance ID, and creates snapshots of all attached EBS volumes for that instance. It leverages Ansible modules to securely manage AWS credentials (via STS) and perform snapshot operations.
 
-Any pre-requisites that may not be covered by Ansible itself or the role should be mentioned here. For instance, if the role uses the EC2 module, it may be a good idea to mention in this section that the boto package is required.
+## Requirements
+------------
+The following Ansible collections are required:
 
-Role Variables
+- `amazon.aws`
+- `ansible.builtin`
+
+The target system must also have:
+- Access to instance metadata (if running on EC2).
+- Proper IAM permissions (via the assumed role) to describe instances and create snapshots.
+
+## Role Variables
 --------------
+| Variable Name     | Description                                                         | Default Value | Type   |
+|-------------------|---------------------------------------------------------------------|--------------|--------|
+| `aws_account_no`  | The AWS Account Number where the IAM role is located               | None         | String |
+| `aws_role`        | The IAM Role to assume for AWS operations                          | None         | String |
+| `aws_region`      | The AWS Region where the instance and volumes reside               | None         | String |
 
-A description of the settable variables for this role should go here, including any variables that are in defaults/main.yml, vars/main.yml, and any variables that can/should be set via parameters to the role. Any variables that are read from other roles and/or the global scope (ie. hostvars, group vars, etc.) should be mentioned here as well.
+> **Note:** `instance_id` is retrieved dynamically using the instance metadata and does not need to be provided as a variable.
 
-Dependencies
+## Dependencies
 ------------
+This role assumes that the AWS environment has STS enabled and that the role can be assumed with sufficient permissions.
 
-A list of other roles hosted on Galaxy should go here, plus any details in regards to parameters that may need to be set for other roles, or variables that are used from other roles.
-
-Example Playbook
+## Example Playbook
 ----------------
 
-Including an example of how to use your role (for instance, with variables passed in as parameters) is always nice for users too:
+Including an example of how to use this role:
 
-    - hosts: servers
-      roles:
-         - { role: username.rolename, x: 42 }
+```yaml
+---
+- name: Create EBS Volume Snapshots
+  hosts: all
+  become: false
+  roles:
+    - role: server_snapshot
+      vars:
+        aws_account_no: "123456789012"
+        aws_role: "MySnapshotRole"
+        aws_region: "ap-southeast-2"
+      tags: server_snapshot
 
-License
--------
+```
 
-BSD
+Alternatively: 
 
-Author Information
-------------------
-
-An optional section for the role authors to include contact information, or a website (HTML is not allowed).
+```yaml
+---
+- hosts: servers
+  tasks:
+    - name: Include aws_snapshot role
+      ansible.builtin.include_role:
+        name: cba.cbc_sap_os_config.aws_snapshot
+      vars:
+        aws_account_no: "123456789012"
+        aws_role: "MySnapshotRole"
+        aws_region: "ap-southeast-2"
+```
