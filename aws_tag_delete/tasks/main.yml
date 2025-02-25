@@ -9,16 +9,6 @@
       register: assumed_role
       delegate_to: localhost
     
-#    - name: Retrieve Instance ID from Metadata
-#      ansible.builtin.uri:
-#        url: http://169.254.169.254/latest/meta-data/instance-id
-#        return_content: true
-#      register: instance_metadata
-    
-#    - name: Set Instance ID as Fact
-#      ansible.builtin.set_fact:
-#        instance_id: "{{ instance_metadata.content }}"
-    
     - name: Import role
       ansible.builtin.include_role:
         name: aws_instance_info
