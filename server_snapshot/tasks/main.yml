@@ -55,7 +55,12 @@
       delegate_to: localhost
       register: snapshot_results
     
+  rescue:
+    - name: Handle errors in the block
+      ansible.builtin.fail:
+        msg: "An error occurred during AWS role assumption or tag management. Details: {{ ansible_failed_result.msg }}"
+
+  always:
     - name: Verify Snapshot Creation
       ansible.builtin.debug:
         msg: "Snapshot created successfully: {{ snapshot_results.results | map(attribute='snapshot_id') | list }}"
-    

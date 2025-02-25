@@ -28,8 +28,3 @@
         msg: >
           Block execution completed with status: {{ 'Success' if not ansible_failed_result is defined else 'Failure' }}.
           Details: {{ ansible_failed_result.msg if ansible_failed_result is defined else 'No errors' }}
-
-    - name: Show the retrieved metadata
-      ansible.builtin.debug:
-###        var: metadata_values['placement/availability-zone'][:-1]
-        var: metadata_values
