@@ -1,0 +1,20 @@
+---
+- name: Assume AWS Role
+  block:
+    - name: Assume Role
+      amazon.aws.sts_assume_role:
+        role_arn: "arn:aws:iam::{{ aws_account_no }}:role/{{ aws_role }}"
+        role_session_name: "assumeRoleSession"
+        region: "{{ aws_region | default('ap-southeast-2') }}"
+      register: assumed_role
+      delegate_to: localhost
+    
+  rescue:
+    - name: Handle errors in the block
+      ansible.builtin.fail:
+        msg: "An error occurred during AWS role assumption. Details: {{ ansible_failed_result.msg }}"
+
+  always:
+    - name: Cleanup or final tasks (if needed)
+      ansible.builtin.debug:
+        msg: "Block execution completed."

@@ -1,45 +1,61 @@
 ---
-- name: Assume Role
-  amazon.aws.sts_assume_role:
-    role_arn: "arn:aws:iam::{{ aws_account_no }}:role/{{ aws_role }}"
-    role_session_name: "assumeRoleSession"
-    region: "{{ aws_region }}"
-  register: assumed_role
-  delegate_to: localhost
+- name: AWS Instance Snapshot
+  block:
+    - name: Import role
+      ansible.builtin.include_role:
+        name: aws_role_assume
 
-- name: Retrieve Instance ID from Metadata
-  ansible.builtin.uri:
-    url: http://169.254.169.254/latest/meta-data/instance-id
-    return_content: true
-  register: instance_metadata
+    - name: Verify assumed_role is defined and contains required keys
+      ansible.builtin.assert:
+        that:
+          - assumed_role is defined
+          - assumed_role.sts_creds is defined
+          - assumed_role.sts_creds.access_key is defined
+          - assumed_role.sts_creds.secret_key is defined
+          - assumed_role.sts_creds.session_token is defined
+        fail_msg: >
+          The `assumed_role` variable is not defined or does not contain the required keys.
+          Ensure the `aws_role_assume` role is executed successfully.
 
-- name: Set Instance ID as Fact
-  ansible.builtin.set_fact:
-    instance_id: "{{ instance_metadata.content }}"
+    - name: Import role
+      ansible.builtin.include_role:
+        name: aws_instance_info
 
-- name: Retrieve Attached Volume ID(s)
-  amazon.aws.ec2_instance_info:
-    instance_ids: "{{ instance_id }}"
-    region: "{{ aws_region }}"
-    access_key: "{{ assumed_role.sts_creds.access_key }}"
-    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
-    session_token: "{{ assumed_role.sts_creds.session_token }}"
-  register: instance_info
-  delegate_to: localhost
+    - name: Verify assumed_role is defined and contains required keys
+      ansible.builtin.assert:
+        that:
+          - metadata_values is defined
+        fail_msg: >
+          The `metadata_values` variable is not defined or does not contain the required keys.
+          Ensure the `aws_instance_info` role is executed successfully.
 
-- name: Create Snapshot of the Attached Volumes
-  amazon.aws.ec2_snapshot:
-    volume_id: "{{ item }}"
-    description: "Snapshot for volume {{ item }} of instance {{ instance_id }}"
-    region: "{{ aws_region }}"
-    access_key: "{{ assumed_role.sts_creds.access_key }}"
-    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
-    session_token: "{{ assumed_role.sts_creds.session_token }}"
-  loop: "{{ instance_info.instances[0].block_device_mappings | map(attribute='ebs.volume_id') | list }}"
-  delegate_to: localhost
-  register: snapshot_results
+    - name: Set Instance ID as Fact
+      ansible.builtin.set_fact:
+        instance_id: "{{ metadata_values['instance-id'] }}"
 
-- name: Verify Snapshot Creation
-  ansible.builtin.debug:
-    msg: "Snapshot created successfully: {{ snapshot_results.results | map(attribute='snapshot_id') | list }}"
-
+    - name: Retrieve Attached Volume ID(s)
+      amazon.aws.ec2_instance_info:
+        instance_ids: "{{ instance_id }}"
+        region: "{{ aws_region | default('ap-southeast-2') }}"
+        access_key: "{{ assumed_role.sts_creds.access_key }}"
+        secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+        session_token: "{{ assumed_role.sts_creds.session_token }}"
+      register: instance_info
+      delegate_to: localhost
+    
+    - name: Create Snapshot of the Attached Volumes
+      amazon.aws.ec2_snapshot:
+        volume_id: "{{ item }}"
+        description: "Snapshot for volume {{ item }} of instance {{ instance_id }}"
+        region: "{{ aws_region }}"
+        access_key: "{{ assumed_role.sts_creds.access_key }}"
+        secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+        session_token: "{{ assumed_role.sts_creds.session_token }}"
+      loop: "{{ instance_info.instances[0].block_device_mappings | map(attribute='ebs.volume_id') | list }}"
+      delegate_to: localhost
+      register: snapshot_results
+    
+    - name: Verify Snapshot Creation
+      ansible.builtin.debug:
+        msg: "Snapshot created successfully: {{ snapshot_results.results | map(attribute='snapshot_id') | list }}"
+    

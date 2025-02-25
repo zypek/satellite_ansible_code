@@ -1,65 +1,92 @@
 ---
-########################################################################
-# 1) Get region & instance metadata from 169.254.169.254
-########################################################################
-- name: Assume Role
-  amazon.aws.sts_assume_role:
-    role_arn: "arn:aws:iam::{{ aws_account_no }}:role/{{ aws_role }}"
-    role_session_name: "assumeRoleSession"
-    region: "{{ aws_region }}"
-  register: assumed_role
-  delegate_to: localhost
+- name: Snapshot Cleanup
+  block:
+    - name: Import role
+      ansible.builtin.include_role:
+        name: aws_role_assume
 
-- name: Fetch instance identity document
-  ansible.builtin.uri:
-    url: "http://169.254.169.254/latest/dynamic/instance-identity/document"
-    return_content: true
-    method: GET
-  register: identity_doc
+    - name: Verify assumed_role is defined and contains required keys
+      ansible.builtin.assert:
+        that:
+          - assumed_role is defined
+          - assumed_role.sts_creds is defined
+          - assumed_role.sts_creds.access_key is defined
+          - assumed_role.sts_creds.secret_key is defined
+          - assumed_role.sts_creds.session_token is defined
+        fail_msg: >
+          The `assumed_role` variable is not defined or does not contain the required keys.
+          Ensure the `aws_role_assume` role is executed successfully.
 
-- name: Set region and instance_id
-  ansible.builtin.set_fact:
-    region: "{{ (identity_doc.content | from_json).region }}"
-    instance_id: "{{ (identity_doc.content | from_json).instanceId }}"
+    - name: Import role
+      ansible.builtin.include_role:
+        name: aws_instance_info
 
-########################################################################
-# 2) Gather volume IDs attached to this instance
-########################################################################
-- name: Gather instance info
-  amazon.aws.ec2_instance_info:
-    region: "{{ region }}"
-    instance_ids:
-      - "{{ instance_id }}"
-    access_key: "{{ assumed_role.sts_creds.access_key }}"
-    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
-    session_token: "{{ assumed_role.sts_creds.session_token }}"
-  register: instance_info
-  delegate_to: localhost
+    - name: Verify assumed_role is defined and contains required keys
+      ansible.builtin.assert:
+        that:
+          - metadata_values is defined
+        fail_msg: >
+          The `metadata_values` variable is not defined or does not contain the required keys.
+          Ensure the `aws_instance_info` role is executed successfully.
 
-- name: Debug volume IDs
-  ansible.builtin.debug:
-    var: instance_info
+    - name: Set Instance ID as Fact
+      ansible.builtin.set_fact:
+        instance_id: "{{ metadata_values['instance-id'] }}"
+        region: "{{ metadata_values['placement/availability-zone'][:-1] }}"
 
-- name: Extract volume IDs
-  ansible.builtin.set_fact:
-    volume_ids: >-
-      {{
-        instance_info.instances[0].block_device_mappings
-        | map(attribute='ebs.volume_id')
-        | list
-      }}
+    ########################################################################
+    # 2) Gather volume IDs attached to this instance
+    ########################################################################
+    - name: Gather instance info
+      amazon.aws.ec2_instance_info:
+        region: "{{ region }}"
+        instance_ids:
+          - "{{ instance_id }}"
+        access_key: "{{ assumed_role.sts_creds.access_key }}"
+        secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+        session_token: "{{ assumed_role.sts_creds.session_token }}"
+      register: instance_info
+      delegate_to: localhost
+    
+    - name: Debug volume IDs
+      ansible.builtin.debug:
+        var: instance_info
+    
+    - name: Extract volume IDs
+      ansible.builtin.set_fact:
+        volume_ids: >-
+          {{
+            instance_info.instances[0].block_device_mappings
+            | map(attribute='ebs.volume_id')
+            | list
+          }}
+    
+    - name: Debug volume IDs
+      ansible.builtin.debug:
+        msg: "Found volumes: {{ volume_ids }} in region {{ region }}"
+    
+    ########################################################################
+    # 3) Include tasks for each volume
+    ########################################################################
+    - name: Clean up snapshots for each volume
+      ansible.builtin.include_tasks: snapshot_cleanup.yml
+      loop: "{{ volume_ids }}"
+      loop_control:
+        loop_var: my_volume
+      vars:
+        current_volume_id: "{{ my_volume }}"
 
-- name: Debug volume IDs
-  ansible.builtin.debug:
-    msg: "Found volumes: {{ volume_ids }} in region {{ region }}"
 
-########################################################################
-# 3) Include tasks for each volume
-########################################################################
-- name: Clean up snapshots for each volume
-  ansible.builtin.include_tasks: snapshot_cleanup.yml
-  loop: "{{ volume_ids }}"
-  loop_control:
-    loop_var: my_volume
-  vars:
-    current_volume_id: "{{ my_volume }}"
+  rescue:
+    - name: Handle errors in the block
+      ansible.builtin.fail:
+        msg: >
+          An error occurred while retrieving metadata.
+          Details: {{ ansible_failed_result.msg if ansible_failed_result is defined else 'Unknown error' }}
+
+  always:
+    - name: Log execution status
+      ansible.builtin.debug:
+        msg: >
+          Block execution completed with status: {{ 'Success' if not ansible_failed_result is defined else 'Failure' }}.
+          Details: {{ ansible_failed_result.msg if ansible_failed_result is defined else 'No errors' }}

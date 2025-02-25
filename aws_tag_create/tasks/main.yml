@@ -1,48 +1,97 @@
 ---
-- name: Assume Role
-  amazon.aws.sts_assume_role:
-    role_arn: "arn:aws:iam::{{ aws_account_no }}:role/{{ aws_role }}"
-    role_session_name: "assumeRoleSession"
-    region: "{{ aws_region }}"
-  register: assumed_role
-  delegate_to: localhost
+- name: Assume AWS ROle and Manage Instance Tags
+  block:
+    - name: Import role
+      ansible.builtin.include_role:
+        name: aws_role_assume
 
-- name: Retrieve Instance ID from Metadata
-  ansible.builtin.uri:
-    url: http://169.254.169.254/latest/meta-data/instance-id
-    return_content: true
-  register: instance_metadata
+    - name: Verify assumed_role is defined and contains required keys
+      ansible.builtin.assert:
+        that:
+          - assumed_role is defined
+          - assumed_role.sts_creds is defined
+          - assumed_role.sts_creds.access_key is defined
+          - assumed_role.sts_creds.secret_key is defined
+          - assumed_role.sts_creds.session_token is defined
+        fail_msg: >
+          The `assumed_role` variable is not defined or does not contain the required keys.
+          Ensure the `aws_role_assume` role is executed successfully.
+    
+    - name: Import role
+      ansible.builtin.include_role:
+        name: aws_instance_info
 
-- name: Set Instance ID as Fact
-  ansible.builtin.set_fact:
-    instance_id: "{{ instance_metadata.content }}"
+    - name: Verify assumed_role is defined and contains required keys
+      ansible.builtin.assert:
+        that:
+          - metadata_values is defined
+        fail_msg: >
+          The `metadata_values` variable is not defined or does not contain the required keys.
+          Ensure the `aws_instance_info` role is executed successfully.
+    
+    - name: Set Instance ID as Fact
+      ansible.builtin.set_fact:
+        instance_id: "{{ metadata_values['instance-id'] }}"
+    
+    - name: Import Satellite Tag Role
+      ansible.builtin.include_role: 
+        name: create_satellite_tag_values
 
-- name: Debug the update summary (ensure it is within 256 characters)
-  ansible.builtin.debug:
-    msg: "Update summary is: {{ tag_value }} ({{ tag_value | length }} characters)"
+    - name: Verify assumed_role is defined and contains required keys
+      ansible.builtin.assert:
+        that:
+          - tag_key_value is defined
+          - tag_value is defined
+        fail_msg: >
+          The `tag_key_value` or `tag_value` variable is not defined.
+          Ensure the `create_satellite_tag_values` role is executed successfully.
 
-- name: Create tag key and value facts
-  ansible.builtin.set_fact:
-    backup_tag_key: "{{ tag_key_value }}_{{ instance_id }}_{{ ansible_date_time.epoch }}"
-    backup_tag_value: "{{ tag_value }}"
+    - name: Debug the update summary (ensure it is within 256 characters)
+      ansible.builtin.debug:
+        msg: "Update summary is: {{ tag_value }} ({{ tag_value | length }} characters)"
+    
+    - name: Validate tag value length
+      ansible.builtin.assert:
+        that:
+          - tag_value | length <= 256
+        fail_msg: "Tag value exceeds 256 characters. Current length: {{ tag_value | length }}"
+    
+    - name: Create tag key and value facts
+      ansible.builtin.set_fact:
+        backup_tag_key: "{{ tag_key_value }}_{{ instance_id }}_{{ ansible_date_time.epoch }}"
+        backup_tag_value: "{{ tag_value }}"
+    
+    - name: Create tag on an instance
+      amazon.aws.ec2_tag:
+        resource: "{{ instance_id }}"
+        region: "{{ aws_region | default('ap-southeast-2') }}"
+        tags: "{{ { backup_tag_key: backup_tag_value } }}"
+        state: present
+        access_key: "{{ assumed_role.sts_creds.access_key }}"
+        secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+        session_token: "{{ assumed_role.sts_creds.session_token }}"
+      delegate_to: localhost
+    
+  rescue:
+    - name: Handle errors in the block
+      ansible.builtin.fail:
+        msg: "An error occurred during AWS role assumption or tag management. Details: {{ ansible_failed_result.msg }}"
+  
+  always:
+    - name: Cleanup or final tasks (if needed)
+      ansible.builtin.debug:
+        msg: "Block execution completed. Proceeding with cleanup or final tasks."
+  
+    - name: Get current instance tags
+      amazon.aws.ec2_instance_info:
+        instance_ids: "{{ instance_id }}"
+        region: "{{ aws_region | default('ap-southeast-2') }}"
+        access_key: "{{ assumed_role.sts_creds.access_key }}"
+        secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+        session_token: "{{ assumed_role.sts_creds.session_token }}"
+      register: instance_info
+      delegate_to: localhost
 
-- name: Create tag on an instance
-  amazon.aws.ec2_tag:
-    resource: "{{ instance_id }}"
-    region: "{{ aws_region }}"
-    tags: "{{ { backup_tag_key: backup_tag_value } }}"
-    state: present
-    access_key: "{{ assumed_role.sts_creds.access_key }}"
-    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
-    session_token: "{{ assumed_role.sts_creds.session_token }}"
-  delegate_to: localhost
-
-- name: Get current instance tags
-  amazon.aws.ec2_instance_info:
-    instance_ids: "{{ instance_id }}"
-    region: "{{ aws_region }}"
-    access_key: "{{ assumed_role.sts_creds.access_key }}"
-    secret_key: "{{ assumed_role.sts_creds.secret_key }}"
-    session_token: "{{ assumed_role.sts_creds.session_token }}"
-  register: instance_info
-  delegate_to: localhost
+    - name: Show the Tags
+      ansible.builtin.debug: 
+        var: instance_info.instances[0].tags

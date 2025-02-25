@@ -3,6 +3,8 @@
   hosts: all
   become: true
   roles:
+    - role: aws_instance_info
+      tags: aws_instance_info
     - role: cluster_node_stop
       tags: cluster_node_stop
     - role: cluster_node_start
@@ -39,9 +41,6 @@
     - role: satellite_register
       tags:
         - satellite_register
-    - role: satellite_upload
-      tags:
-        - satellite_upload
     - role: server_restore
       tags:
         - server_restore
@@ -60,3 +59,10 @@
     - role: content_view_errata
       tags:
         - content_view_errata
+    - role: satellite_upload
+      tags:
+        - satellite_upload
+    - role: aws_role_assume
+      tags:
+        - aws_role_assume
+

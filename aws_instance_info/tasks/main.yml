@@ -1,0 +1,35 @@
+---
+- name: AWS Instance Info
+  block:
+    - name: Retrieve metadata from AWS instance
+      ansible.builtin.uri:
+        url: "http://169.254.169.254/latest/meta-data/{{ item }}"
+        return_content: true
+      register: instance_metadata
+      loop: "{{ metadata_paths }}"
+
+    - name: Set metadata as Fact
+      ansible.builtin.set_fact:
+        metadata_values: "{{ metadata_values | default({}) | combine({ item.item: item.content }) }}"
+      loop: "{{ instance_metadata.results }}"
+      loop_control:
+        loop_var: item
+
+  rescue:
+    - name: Handle errors in the block
+      ansible.builtin.fail:
+        msg: >
+          An error occurred while retrieving metadata.
+          Details: {{ ansible_failed_result.msg if ansible_failed_result is defined else 'Unknown error' }}
+
+  always:
+    - name: Log execution status
+      ansible.builtin.debug:
+        msg: >
+          Block execution completed with status: {{ 'Success' if not ansible_failed_result is defined else 'Failure' }}.
+          Details: {{ ansible_failed_result.msg if ansible_failed_result is defined else 'No errors' }}
+
+    - name: Show the retrieved metadata
+      ansible.builtin.debug:
+###        var: metadata_values['placement/availability-zone'][:-1]
+        var: metadata_values

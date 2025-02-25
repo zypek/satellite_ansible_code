@@ -1,0 +1,63 @@
+---
+- name: Stop Cluster Node Services
+  block:
+    - name: Run pcs cluster stop
+      ansible.builtin.command: "pcs cluster stop"
+      register: cluster_stop_result
+      ignore_errors: true
+    
+    - name: Fail if pcs cluster stop command failed
+      ansible.builtin.fail:
+        msg: "Failed to stop the cluster. Error: {{ cluster_stop_result.stderr }}"
+      when: cluster_stop_result.rc != 0
+    
+    - name: Pause for a while
+      ansible.builtin.pause:
+        seconds: 10
+    
+    - name: Verify if Cluster Services are Stopped
+      ansible.builtin.service_facts:
+    
+    - name: Check each service status
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services[item + '.service'].state == 'stopped'
+        fail_msg: "{{ item }} service is running!"
+        success_msg: "{{ item }} service is not running."
+      loop: "{{ system_services_list }}"
+
+   rescue:
+    - name: Verify if the services have been stopped and start them if stopped
+      ansible.builtin.service_facts:
+      
+    - name: Start the services
+      ansible.builtin.command: "pcs cluster start" 
+      register: cluster_start_result
+      ignore_errors: true
+
+    - name: Fail if pcs cluster start command failed
+      ansible.builtin.fail:
+        msg: "Failed to rescue the cluster. Error: {{ cluster_start_result.stderr }}"
+      when: cluster_start_result.rc != 0
+    
+    - name: Pause for a while
+      ansible.builtin.pause:
+        seconds: 10
+    
+    - name: Verify if Cluster Services are Stopped
+      ansible.builtin.service_facts:
+    
+    - name: Check each service status
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services[item + '.service'].state == 'running'
+        fail_msg: "{{ item }} service is not running!"
+        success_msg: "{{ item }} service is running."
+      loop: "{{ system_services_list }}"
+
+  always:
+    - name: Log execution status
+      ansible.builtin.debug:
+        msg: >
+          Block execution completed with status: {{ 'Success' if not ansible_failed_result else 'Failure' }}.
+          Details: {{ ansible_failed_result.msg if ansible_failed_result else 'No errors' }} 

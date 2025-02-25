@@ -9,14 +9,15 @@ system_services_list:
   - corosync
 satellite_deployment_organization: 'RedHat'
 satellite_deployment_admin_username: 'admin'
-satellite_deployment_admin_password: password
-satellite_lifecycle: [Build, NonProd, PreProd, Prod]
-satellite_content_view: test
+satellite_deployment_admin_password: redhat123
+satellite_lifecycle: [NonProd, PreProd, Prod]
+satellite_content_view: CV-Comp
 satellite_deployment_server: "https://rhsatellite.example.org"
 satellite_kat_cert: "katello-ca-consumer-latest.noarch.rpm"
+#satellite_base_url: "rhsatpool1.prod.cba"
 sat_activation_key: "ak-rhel8-nonprod"
 yum_repo_dir: "/etc/yum.repos.d"
-satellite_content_view_version_cleanup_keep: 2
+satellite_content_view_version_cleanup_keep: 0
 errata_filter_name: "filter-security-bugfix"
 errata_end_date: "2025-02-05"
 
@@ -42,9 +43,17 @@ cluster_backup_dir: '/tmp'
 instance_id: "i-06f2ae9866ae9448b"  # Replace with your instance ID
 
 # Variables for AWS Roles
-aws_role: 
-aws_account_no: 
+aws_role: AcoeCICDRole
+aws_account_no: 273354650151
 
 # Variables for the Tags
 tag_value: "Summary To Add to the Tag's value Something"
 tag_key_value: "Server_Name_Update"
+
+# Instance Info
+metadata_paths: 
+  - "instance-id"
+  - "local-ipv4"
+  - "public-ipv4"
+  - "ami-id"
+  - "placement/availability-zone"
