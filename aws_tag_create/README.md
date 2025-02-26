@@ -50,7 +50,6 @@ Including an example of how to use your role (for instance, with variables passe
   roles:
     - role: aws_tag_create
       tags: aws_tag_create
-
 ```
 
 Alternatively: 
@@ -68,5 +67,4 @@ Alternatively:
   	aws_region:
  	tag_key_value:
 	tag_value: 
-
 ```
