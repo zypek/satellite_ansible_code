@@ -27,7 +27,7 @@
       when: download_result is failed
     
     - name: Upload "{{ package_name }}" to Satellite repository
-      theforeman.foreman.content_upload:
+      redhat.satellite.content_upload:
         username: "{{ satellite_deployment_admin_username }}"
         password: "{{ satellite_deployment_admin_password }}"
         server_url: "{{ satellite_deployment_server }}"

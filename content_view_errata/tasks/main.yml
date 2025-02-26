@@ -6,7 +6,7 @@
         name: satellite_check
 
     - name: "Include errata by date"
-      theforeman.foreman.content_view_filter_rule:
+      redhat.satellite.content_view_filter_rule:
         username: "{{ satellite_deployment_admin_username }}"
         password: "{{ satellite_deployment_admin_password }}"
         server_url: "{{ satellite_deployment_server }}"

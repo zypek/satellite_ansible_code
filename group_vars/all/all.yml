@@ -1,7 +1,7 @@
 ---
 one_week_ago: "{{ lookup('pipe', 'date -u --date=\"1 week ago\" +%Y-%m-%dT%H:%M:%SZ') }}"
 aws_region: "ap-southeast-2"
-system_services_list:
+update_system_services_list:
   - sshd
   - rsyslog
   - pcsd
