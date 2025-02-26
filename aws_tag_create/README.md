@@ -33,7 +33,7 @@ Role Variables
 Dependencies
 ------------
 
-# The following role can be used to populate the tag_key_value and tag_value variables if the aws_tag_create is used to create the tag containing the Satellite Content View versions 
+The following role can be used to populate the tag_key_value and tag_value variables if the aws_tag_create is used to create the tag containing the Satellite Content View versions 
 
 - role: create_satellite_tag_values
 
