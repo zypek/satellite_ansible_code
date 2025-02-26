@@ -1,0 +1,21 @@
+---
+- name: Manage AWS instance snapshot, updates, and verification
+  hosts: localhost
+  gather_facts: true
+  become: true
+  vars:
+    aws_region: "ap-southeast-2"
+    system_services_list:
+      - sshd
+      - rsyslog
+      - pcsd
+      - pacemaker
+      - corosync
+  tasks:
+
+  - name: Calculate one week ago in ISO format
+    ansible.builtin.set_fact:
+      one_week_ago: "{{ ansible_date_time['date'] }}"
+  - name: Check
+    debug:
+      var: one_week_ago

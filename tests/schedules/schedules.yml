@@ -4,7 +4,8 @@ controller_schedules:
     description: Friday-Schedule
     unified_job_template: TMPL-WOW-NEW-TEAMS
     organization: MOS-TEST
-    rrule: "DTSTART;TZID=Australia/NSW:20251212T233000 RRULE:FREQ=WEEKLY;INTERVAL=1;BYDAY=FR"
+    #rrule: "DTSTART;TZID=Australia/NSW:20251212T233000 RRULE:FREQ=WEEKLY;INTERVAL=1;BYDAY=FR"
+    rrule: "DTSTART;TZID=Australia/NSW:20251212T233000 RRULE:FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=-1"
     ask_scm_branch_on_launch: false
     ask_variables_on_launch: true
     ask_inventory_on_launch: false

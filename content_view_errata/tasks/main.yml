@@ -5,6 +5,10 @@
       ansible.builtin.include_role:
         name: satellite_check
 
+    - name: Calculate one week ago in ISO format
+      ansible.builtin.set_fact:
+        date_today: "{{ ansible_date_time['date'] }}"
+
     - name: "Include errata by date"
       redhat.satellite.content_view_filter_rule:
         username: "{{ satellite_deployment_admin_username }}"
@@ -19,7 +23,7 @@
         types:
           - bugfix
           - security
-        end_date: "{{ errata_end_date }}"
+        end_date: "{{ errata_end_date | default(ansible_date_time['date']) }}"
 
   rescue:
     - name: Handle errors during errata inclusion

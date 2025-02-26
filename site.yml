@@ -47,7 +47,7 @@
 
 - name: Restore Server from the Snapshot
   hosts: localhost
-  gather_facts: false
+  gather_facts: true
   become: true
   roles:
     - role: satellite_check
