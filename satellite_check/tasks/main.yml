@@ -1,0 +1,27 @@
+---
+- name: Verify Satellite/Foreman Connectivity
+  block:
+    - name: Check Foreman/Satellite Server Connectivity
+      theforeman.foreman.status_info:
+        server_url:  "{{ satellite_deployment_server }}"
+        username:    "{{ satellite_deployment_admin_username }}"
+        password:    "{{ satellite_deployment_admin_password }}"
+        validate_certs: false  # set to true if you have valid SSL certs
+      register: foreman_status
+
+    - name: Show Server Status
+      ansible.builtin.debug:
+        msg: "Status of the Satellite is {{ foreman_status['status']['result'] }}"
+
+  rescue:
+    - name: Handle Connectivity Failure
+      ansible.builtin.fail:
+        msg: >-
+          Failed to connect to the Satellite server or invalid credentials. 
+          Details: {{ ansible_failed_result.msg if ansible_failed_result is defined else 'Unknown error' }}
+
+  always:
+    - name: Connectivity Check Completed
+      ansible.builtin.debug:
+        msg: "Satellite connectivity check block completed."
+

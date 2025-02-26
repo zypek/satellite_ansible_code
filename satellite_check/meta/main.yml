@@ -1,0 +1,8 @@
+galaxy_info:
+  author: Sebastian Baszczyj
+  description: Senior Consultant
+  company: Red Hat
+  license: GPL-2.0
+  min_ansible_version: "2.15"
+  galaxy_tags: []
+dependencies: []

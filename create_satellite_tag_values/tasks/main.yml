@@ -1,53 +1,65 @@
 ---
-- name: "Check The CV version"
-  theforeman.foreman.content_view_info:
-    username: "{{ satellite_deployment_admin_username }}"
-    password: "{{ satellite_deployment_admin_password }}"
-    server_url: "{{ satellite_deployment_server }}"
-    name: "{{ satellite_content_view }}"
-    validate_certs: false
-    organization: "{{ satellite_deployment_organization }}"
-  register: sat_ccv_version
+- name: Create AWS Tags from Satellite CV Info
+  block:
+    - name: Import Satellite Check Role
+      ansible.builtin.include_role:
+        name: satellite_check
 
-- name: Report Update Success
-  ansible.builtin.debug:
-    var: sat_ccv_version
+    - name: "Check The CV version"
+      theforeman.foreman.content_view_info:
+        username: "{{ satellite_deployment_admin_username }}"
+        password: "{{ satellite_deployment_admin_password }}"
+        server_url: "{{ satellite_deployment_server }}"
+        name: "{{ satellite_content_view }}"
+        validate_certs: false
+        organization: "{{ satellite_deployment_organization }}"
+      register: sat_ccv_version
+    
+    - name: Report Update Success
+      ansible.builtin.debug:
+        var: sat_ccv_version
+    
+    - name: Initialize composite CV fact
+      ansible.builtin.set_fact:
+        cv_comp:
+          name: "{{ sat_ccv_version.content_view.name }}"
+          version: "{{ sat_ccv_version.content_view.latest_version }}"
+          components: []
+    
+    - name: Populate component CV details
+      ansible.builtin.set_fact:
+        cv_comp: "{{ cv_comp | combine({'components': cv_comp.components + [component_entry]}) }}"
+      loop: "{{ sat_ccv_version.content_view.components }}"
+      vars:
+        component_id: "{{ item.id }}"
+        component_version: "{{ item.version }}"
+        content_view_component: "{{ sat_ccv_version.content_view.content_view_components | selectattr('content_view_version.id', '==', component_id) | first }}"
+        component_cvv: "{{ (content_view_component.component_content_view_versions | selectattr('version', '==', component_version) | first) if content_view_component else {} }}"
+        component_entry:
+          name: "{{ item.content_view.name }}"
+          version: "{{ component_version }}"
+          published_date: "{{ component_cvv.published_at_words | default('Date not available') }}"
+    
+    - name: Show composite CV structure
+      ansible.builtin.debug:
+        var: cv_comp
+    
+    - name: Create an update tag summary string from composite CV
+      ansible.builtin.set_fact:
+        update_summary: >-
+          CV-Comp:{{ cv_comp.version }}{% for comp in cv_comp.components %}, {{ comp.name }}:{{ comp.version }}{% endfor %}
+    
+    - name: Debug the update summary (ensure it is within 256 characters)
+      ansible.builtin.debug:
+        msg: "Update summary is: {{ update_summary }} ({{ update_summary | length }} characters)"
+    
+    - name: Create tag key and value facts
+      ansible.builtin.set_fact:
+        tag_key_value: "Server_update_{{ instance_id }}_{{ ansible_date_time.epoch }}"
+        tag_value: "{{ update_summary }}"
 
-- name: Initialize composite CV fact
-  ansible.builtin.set_fact:
-    cv_comp:
-      name: "{{ sat_ccv_version.content_view.name }}"
-      version: "{{ sat_ccv_version.content_view.latest_version }}"
-      components: []
+  rescue:
+    - name: Handle errors in the block
+      ansible.builtin.fail:
+        msg: "An error occurred during AWS role assumption or tag management. Details: {{ ansible_failed_result.msg }}"
 
-- name: Populate component CV details
-  ansible.builtin.set_fact:
-    cv_comp: "{{ cv_comp | combine({'components': cv_comp.components + [component_entry]}) }}"
-  loop: "{{ sat_ccv_version.content_view.components }}"
-  vars:
-    component_id: "{{ item.id }}"
-    component_version: "{{ item.version }}"
-    content_view_component: "{{ sat_ccv_version.content_view.content_view_components | selectattr('content_view_version.id', '==', component_id) | first }}"
-    component_cvv: "{{ (content_view_component.component_content_view_versions | selectattr('version', '==', component_version) | first) if content_view_component else {} }}"
-    component_entry:
-      name: "{{ item.content_view.name }}"
-      version: "{{ component_version }}"
-      published_date: "{{ component_cvv.published_at_words | default('Date not available') }}"
-
-- name: Show composite CV structure
-  ansible.builtin.debug:
-    var: cv_comp
-
-- name: Create an update tag summary string from composite CV
-  ansible.builtin.set_fact:
-    update_summary: >-
-      CV-Comp:{{ cv_comp.version }}{% for comp in cv_comp.components %}, {{ comp.name }}:{{ comp.version }}{% endfor %}
-
-- name: Debug the update summary (ensure it is within 256 characters)
-  ansible.builtin.debug:
-    msg: "Update summary is: {{ update_summary }} ({{ update_summary | length }} characters)"
-
-- name: Create tag key and value facts
-  ansible.builtin.set_fact:
-    tag_key_value: "Server_update_{{ instance_id }}_{{ ansible_date_time.epoch }}"
-    tag_value: "{{ update_summary }}"

@@ -50,44 +50,6 @@
           Details: {{ ansible_failed_result.msg }}
           Task: {{ ansible_failed_result.task }}
 
-    # - name: Attempt to restart the cluster
-    #   ansible.builtin.command: "pcs cluster start"
-    #   register: cluster_start_result
-
-    # - name: Fail if pcs cluster start command failed
-    #   ansible.builtin.fail:
-    #     msg: "Failed to restart the cluster. Error: {{ cluster_start_result.stderr }}"
-    #   when: cluster_start_result.rc != 0
-
-
-    # - name: Wait for cluster services to start
-    #   ansible.builtin.service_facts:
-    #   register: service_facts_result
-    #   retries: 5
-    #   delay: 10
-    #   until: >-
-    #     system_services_list |
-    #     map('regex_replace', '$', '.service') |
-    #     select('in', service_facts_result.ansible_facts.services.keys()) |
-    #     map('extract', service_facts_result.ansible_facts.services) |
-    #     map(attribute='state') |
-    #     select('eq', 'running') |
-    #     list | length == system_services_list | length
-
-
-    # - name: Verify if all cluster services are started
-    #   ansible.builtin.assert:
-    #     that: >-
-    #       system_services_list |
-    #       map('regex_replace', '$', '.service') |
-    #       select('in', service_facts_result.ansible_facts.services.keys()) |
-    #       map('extract', service_facts_result.ansible_facts.services) |
-    #       map(attribute='state') |
-    #       select('eq', 'running') |
-    #       list | length == system_services_list | length
-    #     fail_msg: "Some cluster services are not running"
-    #     success_msg: "All cluster services are running."
-
   always:
     - name: Log execution status
       ansible.builtin.debug:

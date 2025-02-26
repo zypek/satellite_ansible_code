@@ -50,6 +50,8 @@
   gather_facts: false
   become: true
   roles:
+    - role: satellite_check
+      tags: satellite_check
     - role: satellite_content_view
       tags:
         - satellite_content_view

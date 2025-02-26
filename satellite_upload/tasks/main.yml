@@ -1,27 +1,68 @@
 ---
-- name: Download "{{ package_name }} to {{ package_tmp }}"
-  ansible.builtin.get_url:
-    url: "{{ package_url }}"
-    dest: "{{ package_tmp }}/{{ package_name }}"
-    mode: "0644"
+- name: Upload files to Satellite Repositories
+  block:
+    - name: Import Satellite Check Role
+      ansible.builtin.include_role:
+        name: satellite_check
 
-- name: Upload AWS CLI ZIP to Satellite file-based repository
-  theforeman.foreman.content_upload:
-    username: "{{ satellite_deployment_admin_username }}"
-    password: "{{ satellite_deployment_admin_password }}"
-    server_url: "{{ satellite_deployment_server }}"
-    src: "{{ package_tmp }}/{{ package_name }}"
-    product: "{{ satellite_product }}"
-    repository: "{{ satellite_repository }}"
-    organization: "{{ satellite_deployment_organization }}"
-    validate_certs: false   # set to true if using valid certs
+    - name: Ensure temporary directory exists
+      ansible.builtin.file:
+        path: "{{ package_tmp }}"
+        state: directory
+        mode: "0755"
+    
+    - name: Download "{{ package_name }}" to "{{ package_tmp }}"
+      ansible.builtin.get_url:
+        url: "{{ package_url }}"
+        dest: "{{ package_tmp }}/{{ package_name }}"
+        mode: "0644"
+      register: download_result
+      retries: 3
+      delay: 5
+      until: download_result is success
+    
+    - name: Fail if download failed
+      ansible.builtin.fail:
+        msg: "Failed to download {{ package_name }} from {{ package_url }} after 3 retries."
+      when: download_result is failed
+    
+    - name: Upload "{{ package_name }}" to Satellite repository
+      theforeman.foreman.content_upload:
+        username: "{{ satellite_deployment_admin_username }}"
+        password: "{{ satellite_deployment_admin_password }}"
+        server_url: "{{ satellite_deployment_server }}"
+        src: "{{ package_tmp }}/{{ package_name }}"
+        product: "{{ satellite_product }}"
+        repository: "{{ satellite_repository }}"
+        organization: "{{ satellite_deployment_organization }}"
+        validate_certs: false   # set to true if using valid certs
+      register: upload_result
+      retries: 3
+      delay: 30
+      until: upload_result is success
+    
+    - name: Fail if upload failed
+      ansible.builtin.fail:
+        msg: "Failed to upload {{ package_name }} to Satellite repository {{ satellite_repository }} after 3 retries."
+      when: upload_result is failed
+    
+    - name: Show upload result
+      ansible.builtin.debug:
+        msg: "Upload of {{ package_name }} to {{ satellite_repository }} completed successfully."
+    
+    - name: Delete temporary file "{{ package_name }}"
+      ansible.builtin.file:
+        path: "{{ package_tmp }}/{{ package_name }}"
+        state: absent
+      when: download_result is success or upload_result is success
 
-- name: Show result
-  ansible.builtin.debug:
-    msg: "Upload to {{ satellite_repository }} completed successfully."
+  rescue:
+    - name: Delete temporary file "{{ package_name }}"
+      ansible.builtin.file:
+        path: "{{ package_tmp }}/{{ package_name }}"
+        state: absent
 
+    - name: Handle errors in the block
+      ansible.builtin.fail:
+        msg: "An error occurred during AWS role assumption or tag management. Details: {{ ansible_failed_result.msg }}"
 
-- name: Delete temporary file "{{ package_name }}"
-  ansible.builtin.file:
-    path: "{{ package_tmp }}/{{ package_name }}"
-    state: absent
