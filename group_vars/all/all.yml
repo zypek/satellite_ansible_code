@@ -12,6 +12,7 @@ satellite_deployment_admin_username: 'admin'
 satellite_deployment_admin_password: redhat123
 satellite_lifecycle: [NonProd, PreProd, Prod]
 satellite_content_view: CV-Comp
+satellite_sap_content_view: CV-RHEL8
 satellite_deployment_server: "https://rhsatellite.example.org"
 satellite_kat_cert: "katello-ca-consumer-latest.noarch.rpm"
 #satellite_base_url: "rhsatpool1.prod.cba"

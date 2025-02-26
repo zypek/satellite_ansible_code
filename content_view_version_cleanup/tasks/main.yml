@@ -1,37 +1,48 @@
 ---
-- name: "Verify satellite_content_view_version_cleanup_keep is set"
-  ansible.builtin.assert:
-    that:
-      - satellite_content_view_version_cleanup_keep|int >= 0
-    fail_msg: "satellite_content_view_version_cleanup_keep needs to be set to >= 0"
+- name: CV Versions Cleanup
+  block:
+    - name: Import Satellite Check Role
+      ansible.builtin.include_role:
+        name: satellite_check
 
-- name: "Find all content views"
-  theforeman.foreman.resource_info:
-    server_url: "{{ satellite_deployment_server | default(omit) }}"
-    username: "{{ satellite_deployment_admin_username | default(omit) }}"
-    password: "{{ satellite_deployment_admin_password | default(omit) }}"
-    validate_certs: false
-    organization: "{{ satellite_deployment_organization }}"
-    resource: content_views
-    search: "{{ foreman_content_view_version_cleanup_search | default(omit) }}"
-  register: all_cvs
+    - name: "Verify satellite_content_view_version_cleanup_keep is set"
+      ansible.builtin.assert:
+        that:
+          - satellite_content_view_version_cleanup_keep|int >= 0
+        fail_msg: "satellite_content_view_version_cleanup_keep needs to be set to >= 0"
+    
+    - name: "Find all content views"
+      theforeman.foreman.resource_info:
+        server_url: "{{ satellite_deployment_server | default(omit) }}"
+        username: "{{ satellite_deployment_admin_username | default(omit) }}"
+        password: "{{ satellite_deployment_admin_password | default(omit) }}"
+        validate_certs: false
+        organization: "{{ satellite_deployment_organization }}"
+        resource: content_views
+        search: "{{ foreman_content_view_version_cleanup_search | default(omit) }}"
+      register: all_cvs
+    
+    - name: "Delete unused composite content view versions"
+      ansible.builtin.include_tasks: delete_cv_versions.yml
+      vars:
+        cv_name: "{{ ccv.name }}"
+        cv_versions: "{{ (ccv.versions | rejectattr('environment_ids') | map(attribute='version') | map('float') | sort
+          | map('string') | reverse | list)[satellite_content_view_version_cleanup_keep:] }}"
+      loop: "{{ all_cvs.resources | selectattr('composite') | list }}"
+      loop_control:
+        label: "{{ ccv.label }}"
+        loop_var: "ccv"
+      when: (ccv.versions | rejectattr('environment_ids') | map(attribute='version') | reverse | list)[satellite_content_view_version_cleanup_keep:]
+    
+    - name: "Find and delete unused content view versions"
+      ansible.builtin.include_tasks: find_and_delete_unused_cv_versions.yml
+      loop: "{{ all_cvs.resources | rejectattr('composite') | list }}"
+      loop_control:
+        label: "{{ cv.label }}"
+        loop_var: "cv"
+      when: (cv.versions | rejectattr('environment_ids') | map(attribute='version') | reverse | list)[satellite_content_view_version_cleanup_keep:]
 
-- name: "Delete unused composite content view versions"
-  ansible.builtin.include_tasks: delete_cv_versions.yml
-  vars:
-    cv_name: "{{ ccv.name }}"
-    cv_versions: "{{ (ccv.versions | rejectattr('environment_ids') | map(attribute='version') | map('float') | sort
-      | map('string') | reverse | list)[satellite_content_view_version_cleanup_keep:] }}"
-  loop: "{{ all_cvs.resources | selectattr('composite') | list }}"
-  loop_control:
-    label: "{{ ccv.label }}"
-    loop_var: "ccv"
-  when: (ccv.versions | rejectattr('environment_ids') | map(attribute='version') | reverse | list)[satellite_content_view_version_cleanup_keep:]
-
-- name: "Find and delete unused content view versions"
-  ansible.builtin.include_tasks: find_and_delete_unused_cv_versions.yml
-  loop: "{{ all_cvs.resources | rejectattr('composite') | list }}"
-  loop_control:
-    label: "{{ cv.label }}"
-    loop_var: "cv"
-  when: (cv.versions | rejectattr('environment_ids') | map(attribute='version') | reverse | list)[satellite_content_view_version_cleanup_keep:]
+  rescue:
+    - name: Handle errors in the block
+      ansible.builtin.fail:
+        msg: "An error occurred during CV cleanup. Details: {{ ansible_failed_result.msg }}"

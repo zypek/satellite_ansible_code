@@ -64,5 +64,5 @@
 
     - name: Handle errors in the block
       ansible.builtin.fail:
-        msg: "An error occurred during AWS role assumption or tag management. Details: {{ ansible_failed_result.msg }}"
+        msg: "An error occurred during file upload. Details: {{ ansible_failed_result.msg }}"
 

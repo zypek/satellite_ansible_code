@@ -1,17 +1,39 @@
 ---
-# tasks file for content_view_errata
-- name: "Include errata by date"
-  theforeman.foreman.content_view_filter_rule:
-    username: "{{ satellite_deployment_admin_username }}"
-    password: "{{ satellite_deployment_admin_password }}"
-    server_url: "{{ satellite_deployment_server }}"
-    content_view: "{{ satellite_content_view }}"
-    organization: "{{ satellite_deployment_organization }}"
-    validate_certs: false
-    content_view_filter: "{{ errata_filter_name }}"
-    state: present
-    date_type: updated
-    types:
-      - bugfix
-      - security
-    end_date: "{{ errata_end_date }}"
+- name: Set the Errata Time
+  block:
+    - name: Import Satellite Check Role
+      ansible.builtin.include_role:
+        name: satellite_check
+
+    - name: "Include errata by date"
+      theforeman.foreman.content_view_filter_rule:
+        username: "{{ satellite_deployment_admin_username }}"
+        password: "{{ satellite_deployment_admin_password }}"
+        server_url: "{{ satellite_deployment_server }}"
+        content_view: "{{ satellite_sap_content_view }}"
+        organization: "{{ satellite_deployment_organization }}"
+        validate_certs: false
+        content_view_filter: "{{ errata_filter_name }}"
+        state: present
+        date_type: updated
+        types:
+          - bugfix
+          - security
+        end_date: "{{ errata_end_date }}"
+
+  rescue:
+    - name: Handle errors during errata inclusion
+      ansible.builtin.fail:
+        msg: >-
+          Failed to include errata by date. Error details:
+          - Task: "{{ ansible_failed_task.name }}"
+          - Error: "{{ ansible_failed_result.msg }}"
+      when: ansible_failed_task is defined and ansible_failed_result is defined
+
+    - name: Log the error for debugging
+      ansible.builtin.debug:
+        msg: >-
+          Error occurred during errata inclusion. Details:
+          - Task: "{{ ansible_failed_task.name }}"
+          - Error: "{{ ansible_failed_result.msg }}"
+      when: ansible_failed_task is defined and ansible_failed_result is defined

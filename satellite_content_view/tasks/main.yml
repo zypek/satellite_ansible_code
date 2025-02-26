@@ -1,10 +1,43 @@
 ---
 - name: "Publish and Promote {{ satellite_content_view }} for {{ satellite_deployment_server.split('/')[2] }}"
-  theforeman.foreman.content_view_version:
-    username: "{{ satellite_deployment_admin_username }}"
-    password: "{{ satellite_deployment_admin_password }}"
-    server_url: "{{ satellite_deployment_server }}"
-    content_view: "{{ satellite_content_view }}"
-    organization: "{{ satellite_deployment_organization }}"
-    validate_certs: false
-    lifecycle_environments: "{{ satellite_lifecycle }}"
+  block:
+    - name: Import Satellite Check Role
+      ansible.builtin.include_role:
+        name: satellite_check
+
+    - name: "Publish and Promote {{ satellite_content_view }} for {{ satellite_deployment_server.split('/')[2] }}"
+      theforeman.foreman.content_view_version:
+        username: "{{ satellite_deployment_admin_username }}"
+        password: "{{ satellite_deployment_admin_password }}"
+        server_url: "{{ satellite_deployment_server }}"
+        content_view: "{{ satellite_content_view }}"
+        organization: "{{ satellite_deployment_organization }}"
+        validate_certs: false
+        lifecycle_environments: "{{ satellite_lifecycle }}"
+      register: publish_result
+      retries: 3
+      delay: 300
+      until: publish_result is success
+ 
+    - name: Fail if CV Publish/Promote failed
+      ansible.builtin.fail:
+        msg: "Failed to promote {{ satellite_content_view }} after 3 retries."
+      when: publish_result is failed
+
+  rescue:
+    - name: Handle errors during errata inclusion
+      ansible.builtin.fail:
+        msg: >-
+          Failed to include errata by date. Error details:
+          - Task: "{{ ansible_failed_task.name }}"
+          - Error: "{{ ansible_failed_result.msg }}"
+      when: ansible_failed_task is defined and ansible_failed_result is defined
+ 
+    - name: Log the error for debugging
+      ansible.builtin.debug:
+        msg: >-
+          Error occurred during errata inclusion. Details:
+          - Task: "{{ ansible_failed_task.name }}"
+          - Error: "{{ ansible_failed_result.msg }}"
+      when: ansible_failed_task is defined and ansible_failed_result is defined
+
