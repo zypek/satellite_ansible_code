@@ -1,6 +1,6 @@
 ---
 - name: "Delete content view versions of {{ cv_name }}"
-  theforeman.foreman.content_view_version:
+  redhat.satellite.content_view_version:
     server_url: "{{ satellite_deployment_server | default(omit) }}"
     username: "{{ satellite_deployment_admin_username | default(omit) }}"
     password: "{{ satellite_deployment_admin_password | default(omit) }}"

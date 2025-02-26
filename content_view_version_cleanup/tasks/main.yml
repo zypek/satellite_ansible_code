@@ -12,7 +12,7 @@
         fail_msg: "satellite_content_view_version_cleanup_keep needs to be set to >= 0"
     
     - name: "Find all content views"
-      theforeman.foreman.resource_info:
+      redhat.satellite.resource_info:
         server_url: "{{ satellite_deployment_server | default(omit) }}"
         username: "{{ satellite_deployment_admin_username | default(omit) }}"
         password: "{{ satellite_deployment_admin_password | default(omit) }}"
