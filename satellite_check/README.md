@@ -1,43 +1,37 @@
 Role Name
 =========
 
-# satellite_upload
+# satellite_check
 
 ## Description
 ------------
-This Ansible role downloads a package (e.g., AWS CLI ZIP file) to a local or remote machine, then uploads it to a file-based repository in Red Hat Satellite, and finally removes the temporary downloaded file.
+This Ansible role verifies connectivity to a Satellite or Foreman server, checks credentials, and displays server status. If connectivity fails (due to network or invalid credentials), the role clearly reports the error.
 
 ## Requirements
 ------------
 The following Ansible collections are required:
 
 - `ansible.builtin`
-- `theforeman.foreman`
+- `redhat.satellite`
 
-The target system (or control node) must have:
-- Valid credentials for the Satellite server.
-- Access to the specified package URL.
-- Write permissions to the specified local temporary path.
+Your environment should also have:
+- Valid credentials to authenticate with Red Hat Satellite/Foreman.
+- Proper networking/ports open to access the Satellite server.
 
 ## Role Variables
 --------------
-| Variable Name                         | Description                                                            | Default Value | Type   |
-|--------------------------------------|------------------------------------------------------------------------|--------------|--------|
-| `package_url`                        | The URL to download the package from (e.g., AWS CLI ZIP)              | None         | String |
-| `package_name`                       | The name of the package to be saved locally and uploaded              | None         | String |
-| `package_tmp`                        | Temporary directory path where the downloaded file will be stored     | `/tmp`       | String |
-| `satellite_deployment_admin_username`| Username with rights to upload to the Satellite server                | None         | String |
-| `satellite_deployment_admin_password`| Password for the Satellite server user                                 | None         | String |
-| `satellite_deployment_server`        | URL of the Satellite server                                           | None         | String |
-| `satellite_deployment_organization`  | The organisation name in Satellite                                    | None         | String |
-| `satellite_product`                  | Name of the Satellite Product to which the repository belongs          | None         | String |
-| `satellite_repository`               | Name of the Satellite file-based repository                            | None         | String |
+| Variable Name                           | Description                                                                | Default Value | Type   |
+|----------------------------------------|----------------------------------------------------------------------------|--------------|--------|
+| `satellite_deployment_server`          | The Satellite/Foreman server URL                                           | None         | String |
+| `satellite_deployment_admin_username`  | Username for Satellite/Foreman authentication                              | None         | String |
+| `satellite_deployment_admin_password`  | Password for the Satellite/Foreman user                                   | None         | String |
+| `validate_certs` (optional)           | Whether to validate SSL certificates (`true` or `false`)                   | `false`      | Boolean |
 
 ## Dependencies
 ------------
-This role assumes that:
-- The specified Satellite product and repository already exist.
-- The user has permissions to upload content to that repository.
+This role assumes:
+- The Satellite server is up and reachable.
+- The credentials provided have permissions to retrieve server status.
 
 ## Example Playbook
 ----------------
@@ -45,40 +39,14 @@ This role assumes that:
 ### Using the role within a playbook
 ```yaml
 ---
-- name: Upload package to Satellite
+- name: Check Satellite Connectivity
   hosts: all
   become: false
   roles:
-    - role: satellite_upload
+    - role: satellite_check
       vars:
-        package_url: "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip"
-        package_name: "awscliv2.zip"
-        package_tmp: "/tmp"
+        satellite_deployment_server: "https://satellite.example.com"
         satellite_deployment_admin_username: "admin"
         satellite_deployment_admin_password: "redhat"
-        satellite_deployment_server: "https://satellite.example.com"
-        satellite_deployment_organization: "Default_Organization"
-        satellite_product: "MyProduct"
-        satellite_repository: "AWS_CLI_Repo"
-```
-
-Alternatively: 
-
-```yaml
----
-- hosts: servers
-  tasks:
-    - name: Include satellite_upload role
-      ansible.builtin.include_role:
-        name: cba.cbc_sap_os_config.satellite_upload
-      vars:
-        package_url: "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip"
-        package_name: "awscliv2.zip"
-        package_tmp: "/tmp"
-        satellite_deployment_admin_username: "admin"
-        satellite_deployment_admin_password: "redhat"
-        satellite_deployment_server: "https://satellite.example.com"
-        satellite_deployment_organization: "Default_Organization"
-        satellite_product: "MyProduct"
-        satellite_repository: "AWS_CLI_Repo"
+        validate_certs: false
 ```

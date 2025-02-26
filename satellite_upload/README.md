@@ -12,7 +12,11 @@ This Ansible role downloads a package (e.g., AWS CLI ZIP file) to a local or rem
 The following Ansible collections are required:
 
 - `ansible.builtin`
-- `theforeman.foreman`
+- `redhat.satellite'
+
+The following python modules are required: 
+
+- `rpm`
 
 The target system (or control node) must have:
 - Valid credentials for the Satellite server.

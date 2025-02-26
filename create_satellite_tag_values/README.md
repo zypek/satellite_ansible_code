@@ -5,7 +5,7 @@ Role Name
 
 ## Description
 ------------
-This Ansible role connects to a Red Hat Satellite server (using the [theforeman.foreman](https://galaxy.ansible.com/theforeman/foreman) collection) to retrieve a specified Content View (CV) with its component content views. It then constructs a composite structure of the CV and all components, finally creating two facts:
+This Ansible role connects to a Red Hat Satellite server (using the [redhat.satellite](https://console.redhat.com/ansible/automation-hub/repo/published/redhat/satellite/) collection) to retrieve a specified Content View (CV) with its component content views. It then constructs a composite structure of the CV and all components, finally creating two facts:
 
 - `tag_key_value`: A unique key for tagging (e.g., `Server_update_<instance_id>_<epoch_time>`).
 - `tag_value`: A compact update summary string describing the content view and its components.
@@ -14,10 +14,8 @@ This Ansible role connects to a Red Hat Satellite server (using the [theforeman.
 ------------
 The following Ansible collections are required:
 
-- `theforeman.foreman`
 - `redhat.satellite`
 - `redhat.satellite_operations`
-- `ansible.builtin`
 
 The target environment must have:
 - Credentials for the Satellite/Foreman server.
@@ -57,8 +55,8 @@ Including an example of how to use this role:
         satellite_deployment_admin_username: "admin"
         satellite_deployment_admin_password: "redhat"
         satellite_deployment_server: "https://satellite.example.com"
-        satellite_content_view: "RHEL_CV"
-        satellite_deployment_organization: "Default_Organization"
+        satellite_content_view: "rhel8_comp_cv"
+        satellite_deployment_organization: "sap"
       tags: create_satellite_tag_values
 ```
 

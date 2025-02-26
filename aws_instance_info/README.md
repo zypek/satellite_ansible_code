@@ -1,72 +1,86 @@
 Role Name
 =========
 
-# aws_tag_create
-
-Description
-------------
-This Ansible role assumes an AWS IAM role, retrieves the instance ID, and applies a custom tag to an EC2 instance.
-
-Requirements
-------------
-
-The following ansible collectsions are required:
-
-aws.amazon
-cloud.aws_ops
-redhat.satellite
-redhat.satellite_operations
-
-Role Variables
---------------
+# aws_instance_info
 
 
-| Variable Name      | Description                                           | Default Value  | Type   |
-|--------------------|-------------------------------------------------------|---------------|--------|
-| `aws_account_no`  | AWS Account Number                                    | None          | String |
-| `aws_role`        | IAM Role to assume for tagging operations             | None          | String |
-| `aws_region`      | AWS Region where the instance is located              | None          | String |
-| `tag_key_value`   | Base key value for tagging                           | None          | String |
-| `tag_value`       | Value to assign to the tag                           | None          | String |
+## Description
+This Ansible role retrieves metadata from the AWS instance metadata service (`169.254.169.254`) for one or more specified metadata paths. If any retrieval fails, the role gracefully handles the error and stops execution. The retrieved metadata is consolidated into the `metadata_values` fact for subsequent tasks to use.
 
+## Requirements
+No special requirements beyond:
+- Ansible’s built-in modules (`ansible.builtin.uri`, `ansible.builtin.set_fact`, etc.).
 
-Dependencies
-------------
+## Variables
+- **`metadata_paths`**  
+  Example: `['instance-id', 'public-ipv4', 'local-ipv4', 'ami-id', 'placement/availability-zone']`
 
-# The following role can be used to populate the tag_key_value and tag_value variables if the aws_tag_create is used to create the tag containing the Satellite Content View versions 
-
-- role: create_satellite_tag_values
-
-Example Playbook
-----------------
-
-Including an example of how to use your role (for instance, with variables passed in as parameters) is always nice for users too:
+## Usage Example
+In a simple playbook, you might do:
 
 ```yaml
 ---
-- name: Update RHEL Servers
-  hosts: all
+- name: Retrieve AWS metadata
+  hosts: localhost
   become: false
+  vars:
+    metadata_paths:
+      - instance-id
+      - public-ipv4
+      - hostname
+      - local-ipv4
+      - 'placement/availability-zone'
   roles:
-    - role: aws_tag_create
-      tags: aws_tag_create
+    - aws_instance_info
+
+- name: Show metadata values
+  hosts: localhost
+  become: false
+  tasks:
+    - name: Debug retrieved metadata
+      ansible.builtin.debug:
+        var: metadata_values
+```
+
+Example of using this role in another role: 
+
+```yaml
+- name: Import role
+  ansible.builtin.include_role:
+    name: aws_instance_info
+
+- name: Verify assumed_role is defined and contains required keys
+  ansible.builtin.assert:
+    that:
+      - metadata_values is defined
+    fail_msg: >
+      The `metadata_values` variable is not defined or does not contain the required keys.
+      Ensure the `aws_instance_info` role is executed successfully.
+
+- name: Set Instance ID as Fact
+  ansible.builtin.set_fact:
+    instance_id: "{{ metadata_values['instance-id'] }}"
 
 ```
 
-Alternatively: 
+Example of extracting the AWS Region, AWS AZ and instance_id
 
 ```yaml
----
-- hosts: servers
-  tasks:
-    - name: Amend no_proxy
-      ansible.builtin.include_role:
-        name: cba.cbc_sap_os_config.aws_tag_create
-      vars:
-        aws_account_no: 
-        aws_role:
-  	aws_region:
- 	tag_key_value:
-	tag_value: 
+- name: Import role
+  ansible.builtin.include_role:
+    name: aws_instance_info
 
+- name: Verify assumed_role is defined and contains required keys
+  ansible.builtin.assert:
+    that:
+      - metadata_values is defined
+    fail_msg: >
+      The `metadata_values` variable is not defined or does not contain the required keys.
+      Ensure the `aws_instance_info` role is executed successfully.
+
+- name: Set Instance ID as Fact
+  ansible.builtin.set_fact:
+    instance_id: "{{ metadata_values['instance-id'] }}"
+    aws_region: "{{ metadata_values['placement/availability-zone'][:-1] }}"
+    availability_zone: "{{ metadata_values['placement/availability-zone'] }}"
 ```
