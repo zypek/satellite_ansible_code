@@ -1,0 +1,7 @@
+---
+satellite_deployment_organization: 'QBE'
+satellite_deployment_admin_username: 'admin'
+satellite_deployment_admin_password: redhat123
+satellite_lifecycle: [Library, canary]
+satellite_content_view: cv-rhel8
+satellite_deployment_server: "https://rhsatellite.example.net"

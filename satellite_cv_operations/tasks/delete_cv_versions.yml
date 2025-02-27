@@ -1,0 +1,14 @@
+---
+- name: "Delete content view versions of {{ cv_name }}"
+  redhat.satellite.content_view_version:
+    server_url: "{{ satellite_deployment_server | default(omit) }}"
+    username: "{{ satellite_deployment_admin_username | default(omit) }}"
+    password: "{{ satellite_deployment_admin_password | default(omit) }}"
+    validate_certs: false
+    organization: "{{ satellite_deployment_organization }}"
+    content_view: "{{ cv_name }}"
+    version: "{{ cv_version }}"
+    state: absent
+  loop: "{{ cv_versions }}"
+  loop_control:
+    loop_var: "cv_version"

@@ -19,8 +19,8 @@ satellite_kat_cert: "katello-ca-consumer-latest.noarch.rpm"
 sat_activation_key: "ak-rhel8-nonprod"
 yum_repo_dir: "/etc/yum.repos.d"
 satellite_content_view_version_cleanup_keep: 0
-errata_filter_name: "filter-security-bugfix"
-errata_end_date: "2025-02-05"
+sat_errata_filter_name: "filter-security-bugfix"
+sat_errata_end_date: "2025-02-05"
 
 # Variables for satellite_upload role
 satellite_product: "AWS"

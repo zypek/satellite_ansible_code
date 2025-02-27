@@ -1,0 +1,33 @@
+---
+- name: Set the Errata Time
+  block:
+    - name: Verify if the variables have been set and validate tag value length
+      ansible.builtin.assert:
+        that:
+          - sat_errata_filter_name is defined
+          - sat_errata_filter_name | default('') | length > 0
+        fail_msg: >-
+          The `sat_errata_filter_name` variable is not defined, or null.
+
+    - name: Set Current Date
+      ansible.builtin.set_fact:
+        date_today: "{{ ansible_date_time['date'] }}"
+
+    - name: Test
+      debug:
+        var: date_today
+    - name: "Include errata by date"
+      redhat.satellite.content_view_filter_rule:
+        username: "{{ satellite_deployment_admin_username }}"
+        password: "{{ satellite_deployment_admin_password }}"
+        server_url: "{{ satellite_deployment_server }}"
+        content_view: "{{ satellite_sap_content_view }}"
+        organization: "{{ satellite_deployment_organization }}"
+        validate_certs: false
+        content_view_filter: "{{ sat_errata_filter_name | default('filter-security-bugfix') }}"
+        state: present
+        date_type: updated
+        types:
+          - bugfix
+          - security
+        end_date: "{{ sat_errata_end_date | default(date_today) }}"

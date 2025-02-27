@@ -1,0 +1,36 @@
+---
+- name: "Publish and Promote {{ satellite_content_view }} for {{ satellite_deployment_server.split('/')[2] }}"
+  block:
+    - name: Import Satellite Check Role
+      ansible.builtin.include_role:
+        name: satellite_check
+
+    - name: Include sat_cv_filter_errata tasks
+      ansible.builtin.include_tasks: sat_cv_filter_errata.yml
+      when: sat_cv_filter_errata | default(false) | bool
+
+    - name: Include sat_cv_promote tasks
+      ansible.builtin.include_tasks: sat_cv_promote.yml
+      when: sat_cv_promote | default(false) | bool
+
+    - name: Include sat_cv_ver_cleanup tasks
+      ansible.builtin.include_tasks: sat_cv_ver_cleanup.yml
+      when: sat_cv_ver_cleanup | default(false) | bool
+
+  rescue:
+    - name: Handle errors during errata inclusion
+      ansible.builtin.fail:
+        msg: >-
+          Failed to include errata by date. Error details:
+          - Task: "{{ ansible_failed_task.name }}"
+          - Error: "{{ ansible_failed_result.msg }}"
+      when: ansible_failed_task is defined and ansible_failed_result is defined
+ 
+    - name: Log the error for debugging
+      ansible.builtin.debug:
+        msg: >-
+          Error occurred during errata inclusion. Details:
+          - Task: "{{ ansible_failed_task.name }}"
+          - Error: "{{ ansible_failed_result.msg }}"
+      when: ansible_failed_task is defined and ansible_failed_result is defined
+

@@ -56,6 +56,8 @@
   gather_facts: true
   become: true
   roles:
+    - role: satellite_cv_operations
+      tags: satellite_cv_operations
     - role: satellite_check
       tags: satellite_check
     - role: satellite_content_view
