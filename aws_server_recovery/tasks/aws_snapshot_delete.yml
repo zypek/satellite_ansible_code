@@ -1,0 +1,48 @@
+---
+- name: Delete an AWS Snapshot
+  block:
+    - name: Verify if the variables have been set and validate tag value length
+      ansible.builtin.assert:
+        that:
+          - aws_snapshot_id is defined
+          - (aws_snapshot_id | default('', true) | length) > 0
+        fail_msg: >-
+          The `aws_snapshot_id` variable is not defined,
+          or the `aws_snapshot_id` length is invalid. It must be greater than 0.
+    
+    - name: Verify if the Snapshot exists
+      amazon.aws.ec2_snapshot_info:
+        region: "{{ aws_region }}"
+        access_key: "{{ assumed_role.sts_creds.access_key }}"
+        secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+        session_token: "{{ assumed_role.sts_creds.session_token }}"
+        filters:
+          snapshot-id: "{{ aws_snapshot_id }}"
+      register: snap_info
+      delegate_to: localhost
+    
+    - name: Check
+      debug:
+        var: snap_info['snapshots'] | json_query('[*].snapshot_id')
+    
+    - name: Extract snapshot ID Info and set the variable
+      ansible.builtin.set_fact:
+        snapshot_ids: "{{ snap_info.snapshots | json_query('[*].snapshot_id') }}"
+    
+    - name: Verify if the Snapshots exist in AWS
+      ansible.builtin.assert:
+        that:
+          - aws_snapshot_id in snapshot_ids
+        fail_msg: >-
+          The Snapshot does not exist
+    
+    - name: Delete the snapshot
+      amazon.aws.ec2_snapshot:
+        region: "{{ aws_region }}"
+        snapshot_id: "{{ aws_snapshot_id }}"
+        state: absent
+        access_key: "{{ assumed_role.sts_creds.access_key }}"
+        secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+        session_token: "{{ assumed_role.sts_creds.session_token }}"
+      delegate_to: localhost
+

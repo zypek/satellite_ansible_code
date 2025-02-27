@@ -1,0 +1,75 @@
+---
+- name: Set the node into unstandby mode
+  block:
+    - name: Find and set the current Cluster Name
+      ansible.builtin.command: crm_node -n
+      register: cluster_node_name
+
+    - name: Set the current_cluster_name var
+      ansible.builtin.set_fact:
+        current_cluster_name: "{{ cluster_node_name['stdout'] }}"
+
+    - name: Run crm_node -l to get cluster node list
+      ansible.builtin.command: crm_node -l
+      register: crm_node_output
+    
+    - name: Parse crm_node -l output into a list
+      ansible.builtin.set_fact:
+        cluster_nodes: "{{ crm_node_output.stdout_lines | map('regex_replace', '^\\d+\\s+(\\S+)\\s+.*', '\\1') | list }}"
+    
+    - name: Debug cluster nodes
+      ansible.builtin.debug:
+        var: cluster_nodes
+    
+    - name: Check if current hostname is in the cluster node list
+      ansible.builtin.set_fact:
+        is_cluster_member: "{{ current_cluster_name in cluster_nodes }}"
+    
+    - name: Fail if current host is not a cluster member
+      ansible.builtin.fail:
+        msg: "Host {{ current_cluster_name }} is not a member of the cluster."
+      when: not is_cluster_member
+    
+    - name: Check cluster nodes' standby status
+      ansible.builtin.command: pcs status nodes
+      register: pcs_status_output
+      changed_when: false
+    
+    - name: Extract the Standby line
+      ansible.builtin.set_fact:
+        standby_nodes: "{{ pcs_status_output.stdout_lines | select('search', 'Standby:') | first }}"
+      run_once: true
+    
+    - name: Verify if current node is in standby mode
+      ansible.builtin.set_fact:
+        is_in_standby: "{{ current_cluster_name in standby_nodes }}"
+    
+    - name: Run pcs node unstandby
+      ansible.builtin.command: "pcs node unstandby {{ current_cluster_name }}"
+      register: cluster_node_unstandby
+      when: is_in_standby
+    
+    - name: Pause for a while
+      ansible.builtin.pause:
+        seconds: 10
+      when: is_in_standby
+    
+    - name: Check cluster nodes' standby status
+      ansible.builtin.command: pcs status nodes
+      register: pcs_status_output
+      changed_when: false
+    
+    - name: Extract the Standby line
+      ansible.builtin.set_fact:
+        standby_nodes: "{{ pcs_status_output.stdout_lines | select('search', 'Standby:') | first }}"
+    
+    - name: Verify if current node is in standby mode
+      ansible.builtin.set_fact:
+        is_in_standby: "{{ current_cluster_name in standby_nodes }}"
+    
+    - name: Assert that the current node is not in standby mod
+      ansible.builtin.assert:
+        that: 
+          - not is_in_standby
+        fail_msg: "{{ current_cluster_name }} has not been successfully set to Unstandby. Exiting"
+        success_msg: "{{ current_cluster_name }} has been successfully set to Unstandby"

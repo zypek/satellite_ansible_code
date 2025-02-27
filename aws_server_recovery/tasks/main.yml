@@ -1,0 +1,57 @@
+---
+- name: AWS Instance Snapshot
+  block:
+    - name: Import role
+      ansible.builtin.include_role:
+        name: aws_role_assume
+
+    - name: Verify assumed_role is defined and contains required keys
+      ansible.builtin.assert:
+        that:
+          - assumed_role is defined
+          - assumed_role.sts_creds is defined
+          - assumed_role.sts_creds.access_key is defined
+          - assumed_role.sts_creds.secret_key is defined
+          - assumed_role.sts_creds.session_token is defined
+        fail_msg: >
+          The `assumed_role` variable is not defined or does not contain the required keys.
+          Ensure the `aws_role_assume` role is executed successfully.
+
+    - name: Import role
+      ansible.builtin.include_role:
+        name: aws_instance_info
+
+    - name: Verify assumed_role is defined and contains required keys
+      ansible.builtin.assert:
+        that:
+          - metadata_values is defined
+        fail_msg: >
+          The `metadata_values` variable is not defined or does not contain the required keys.
+          Ensure the `aws_instance_info` role is executed successfully.
+
+    - name: Set Instance ID as Fact
+      ansible.builtin.set_fact:
+        instance_id: "{{ metadata_values['instance-id'] }}"
+        aws_region: "{{ metadata_values['placement/availability-zone'][:-1] }}"
+        availability_zone: "{{ metadata_values['placement/availability-zone'] }}"
+
+    - name: Include aws_snapshot_create tasks
+      ansible.builtin.include_tasks: aws_snapshot_create.yml
+      when: aws_snapshot_create | default(false) | bool
+
+    - name: Include aws_snapshot_cleanup tasks
+      ansible.builtin.include_tasks: aws_snapshot_cleanup.yml
+      when: aws_snapshot_cleanup | default(false) | bool
+
+    - name: Include aws_server_restore tasks
+      ansible.builtin.include_tasks: aws_server_restore.yml
+      when: aws_server_restore | default(false) | bool
+
+    - name: Include aws_snapshot_delete tasks
+      ansible.builtin.include_tasks: aws_snapshot_delete.yml
+      when: aws_snapshot_delete | default(false) | bool
+
+  rescue:
+    - name: Handle errors in the block
+      ansible.builtin.fail:
+        msg: "An error occurred. Details: {{ ansible_failed_result.msg }}"

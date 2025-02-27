@@ -7,6 +7,8 @@
       tags: aws_instance_info
     - role: cluster_node_stop
       tags: cluster_node_stop
+    - role: cluster_node_operations
+      tags: cluster_node_operations
     - role: cluster_node_start
       tags: cluster_node_start
     - role: aws_tag_management
@@ -19,6 +21,8 @@
       tags: aws_tag_delete
     - role: server_snapshot
       tags: server_snapshot
+    - role: aws_server_recovery
+      tags: aws_server_recovery
     - role: server_update
       tags:
         - server_update

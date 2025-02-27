@@ -1,0 +1,29 @@
+---
+- name: Snapshot Cleanup
+  block:
+    - name: Gather instance info
+      amazon.aws.ec2_instance_info:
+        region: "{{ aws_region }}"
+        instance_ids: "{{ instance_id }}"
+        access_key: "{{ assumed_role.sts_creds.access_key }}"
+        secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+        session_token: "{{ assumed_role.sts_creds.session_token }}"
+      register: instance_info
+      delegate_to: localhost
+    
+    - name: Extract volume IDs
+      ansible.builtin.set_fact:
+        volume_ids: >-
+          {{
+            instance_info.instances[0].block_device_mappings
+            | map(attribute='ebs.volume_id')
+            | list
+          }}
+    
+    - name: Clean up snapshots for each volume
+      ansible.builtin.include_tasks: aws_snapshot_cleanup_find.yml
+      loop: "{{ volume_ids }}"
+      loop_control:
+        loop_var: my_volume
+      vars:
+        current_volume_id: "{{ my_volume }}"

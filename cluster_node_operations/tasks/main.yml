@@ -1,0 +1,41 @@
+---
+- name: Cluster Operations
+  block:
+    - name: Include cluster_verify tasks
+      ansible.builtin.include_tasks: cluster_verify.yml
+      when: cluster_verify | default(false) | bool
+
+    - name: Include cluster_backup tasks
+      ansible.builtin.include_tasks: cluster_backup.yml
+      when: cluster_backup | default(false) | bool
+
+    - name: Include cluster_node_standby tasks
+      ansible.builtin.include_tasks: cluster_node_standby.yml
+      when: cluster_node_standby | default(false) | bool
+
+    - name: Include cluster_node_stop tasks
+      ansible.builtin.include_tasks: cluster_node_stop.yml
+      when: cluster_node_stop | default(false) | bool
+
+    - name: Include cluster_node_start tasks
+      ansible.builtin.include_tasks: cluster_node_start.yml
+      when: cluster_node_start | default(false) | bool
+
+    - name: Include cluster_node_unstandby tasks
+      ansible.builtin.include_tasks: cluster_node_unstandby.yml
+      when: cluster_node_unstandby | default(false) | bool
+
+  rescue:
+    - name: Handle errors in the block
+      ansible.builtin.fail:
+        msg: >
+          An error occurred while stopping the cluster.
+          Details: {{ ansible_failed_result.msg }}
+          Task: {{ ansible_failed_result.task }}
+
+  always:
+    - name: Log execution status
+      ansible.builtin.debug:
+        msg: >
+          Block execution completed with status: {{ 'Success' if ansible_failed_result is not defined else 'Failure' }}.
+          Details: {{ ansible_failed_result.msg | default('No errors') }}

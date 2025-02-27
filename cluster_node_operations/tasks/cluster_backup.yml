@@ -1,0 +1,94 @@
+---
+- name: Cluster Backup
+  block:
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+    
+    - name: Ensure Pacemaker and Corosync services are running
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services['pacemaker.service'].state == 'running'
+          - ansible_facts.services['corosync.service'].state == 'running'
+        fail_msg: "Pacemaker or Corosync services are not running. Backup cannot proceed."
+    
+    - name: Check if pcs command is available
+      ansible.builtin.command: which pcs
+      register: pcs_check
+    
+    - name: Fail if pcs command is not available
+      ansible.builtin.fail:
+        msg: "The 'pcs' command is not installed. Please install it before proceeding."
+      when: pcs_check.rc != 0
+    
+    - name: Ensure backup directory exists
+      ansible.builtin.file:
+        path: "{{ cluster_backup_dir }}"
+        state: directory
+        mode: '0755'
+    
+    - name: Generate timestamp for backup file
+      ansible.builtin.set_fact:
+        backup_file_timestamp: "{{ lookup('pipe', 'date +%Y%m%d_%H%M%S') }}"
+    
+    - name: Check if backup file already exists
+      ansible.builtin.stat:
+        path: "{{ cluster_backup_dir }}/pcs_backup_{{ inventory_hostname }}_{{ backup_file_timestamp }}.tar.bz2"
+      register: existing_backup_check
+    
+    - name: Fail if backup file already exists
+      ansible.builtin.fail:
+        msg: "Backup file {{ cluster_backup_dir }}/pcs_backup_{{ inventory_hostname }}_{{ backup_file_timestamp }}.tar.bz2 already exists."
+      when: existing_backup_check.stat.exists
+    
+    - name: Run pcs config backup with timestamped filename
+      ansible.builtin.command: "pcs config backup {{ cluster_backup_dir }}/pcs_backup_{{ inventory_hostname }}_{{ backup_file_timestamp }}"
+      args:
+        creates: "{{ cluster_backup_dir }}/pcs_backup_{{ inventory_hostname }}_{{ backup_file_timestamp }}.tar.bz2"
+      register: cl_backup_check
+    
+    - name: Get stats of the backup file
+      ansible.builtin.stat:
+        path: "{{ cluster_backup_dir }}/pcs_backup_{{ inventory_hostname }}_{{ backup_file_timestamp }}.tar.bz2"
+      register: st_backup_check
+      when: cl_backup_check.rc == 0
+    
+    - name: Verify backup file integrity
+      ansible.builtin.command: >
+        tar -tjf "{{ cluster_backup_dir }}/pcs_backup_{{ inventory_hostname }}_{{ backup_file_timestamp }}.tar.bz2"
+      register: backup_integrity_check
+      when: st_backup_check.stat.exists
+    
+    - name: Check
+      debug: 
+        var: backup_integrity_check
+
+    - name: Fail if backup file is corrupted
+      ansible.builtin.fail:
+        msg: "Backup file {{ cluster_backup_dir }}/pcs_backup_{{ inventory_hostname }}_{{ backup_file_timestamp }}.tar.bz2 is corrupted."
+      when: backup_integrity_check.rc != 0
+    
+    - name: Assert that the backup file has been successfully created
+      ansible.builtin.assert:
+        that:
+          - st_backup_check.stat.exists
+        fail_msg: "Backup failed. File {{ cluster_backup_dir }}/pcs_backup_{{ inventory_hostname }}_{{ backup_file_timestamp }}.tar.bz2 does not exist"
+        success_msg: "Backup Successful. File {{ cluster_backup_dir }}/pcs_backup_{{ inventory_hostname }}_{{ backup_file_timestamp }}.tar.bz2 exists"
+      when: cl_backup_check.rc == 0
+    
+  rescue:
+    - name: Notify backup failure
+      ansible.builtin.fail:
+        msg: "Cluster backup failed! Error: {{ ansible_failed_result.msg }}"
+    
+    - name: Cleanup failed backup attempt
+      ansible.builtin.file:
+        path: "{{ cluster_backup_dir }}/pcs_backup_{{ inventory_hostname }}_{{ backup_file_timestamp }}.tar.bz2"
+        state: absent
+    
+    - name: Retry backup (optional)
+      ansible.builtin.command: "pcs config backup {{ cluster_backup_dir }}/pcs_backup_retry_{{ inventory_hostname }}_{{ backup_file_timestamp }}"
+      when: 
+        - ansible_failed_result is defined
+        - ansible_failed_result.msg is not match "already exists"
+      register: retry_backup
+      run_once: true    
