@@ -167,15 +167,3 @@
       retries: 10
       delay: 10
       delegate_to: localhost
-    
-  rescue:
-    - name: Handle errors in the block
-      ansible.builtin.fail:
-        msg: "An error occurred during AWS role assumption or tag management. Details: {{ ansible_failed_result.msg }}"
-
-  always:
-    - name: Print recovery status
-      ansible.builtin.debug:
-        msg: "Instance {{ instance_id }} is running with restored volumes from snapshots."
-
-
