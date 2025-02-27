@@ -1,0 +1,60 @@
+---
+- name: Assume AWS ROle and Manage Instance Tags
+  block:
+    - name: Import Satellite Tag Role
+      ansible.builtin.include_role: 
+        name: satellite_tag_create
+      when: satellite_tag_create | default(false) | bool
+
+    - name: Verify if the variables have been set and validate tag value length
+      ansible.builtin.assert:
+        that:
+          - aws_tag_key_value is defined
+          - (aws_tag_key_value | default('', true) | length) > 0
+          - aws_tag_value is defined
+          - (aws_tag_value | default('', true) | length) > 0
+          - (aws_tag_value | default('', true) | length) <= 256
+        fail_msg: >-
+          The `aws_tag_key_value` or `aws_tag_value` variable is not defined,
+          or the `aws_tag_value` length is invalid. It must be greater than 0
+          and less than or equal to 256 characters.
+
+    - name: Create tag key and value facts
+      ansible.builtin.set_fact:
+        backup_tag_key: "{{ aws_tag_key_value }}"
+        backup_tag_value: "{{ aws_tag_value }}"
+    
+    - name: Create tag on an instance
+      amazon.aws.ec2_tag:
+        resource: "{{ instance_id }}"
+        region: "{{ aws_region | default('ap-southeast-2') }}"
+        tags: "{{ { backup_tag_key: backup_tag_value } }}"
+        state: present
+        access_key: "{{ assumed_role.sts_creds.access_key }}"
+        secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+        session_token: "{{ assumed_role.sts_creds.session_token }}"
+      delegate_to: localhost
+    
+  rescue:
+    - name: Handle errors in the block
+      ansible.builtin.fail:
+        msg: "An error occurred during AWS role assumption or tag management. Details: {{ ansible_failed_result.msg }}"
+  
+  always:
+    - name: Cleanup or final tasks (if needed)
+      ansible.builtin.debug:
+        msg: "Block execution completed. Proceeding with cleanup or final tasks."
+  
+    - name: Get current instance tags
+      amazon.aws.ec2_instance_info:
+        instance_ids: "{{ instance_id }}"
+        region: "{{ aws_region | default('ap-southeast-2') }}"
+        access_key: "{{ assumed_role.sts_creds.access_key }}"
+        secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+        session_token: "{{ assumed_role.sts_creds.session_token }}"
+      register: instance_info
+      delegate_to: localhost
+
+    - name: Show the Tags
+      ansible.builtin.debug: 
+        var: instance_info.instances[0].tags

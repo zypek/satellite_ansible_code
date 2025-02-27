@@ -1,7 +1,7 @@
 ---
-- name: Assume AWS ROle and Manage Instance Tags
+- name: AWS Tag Management
   block:
-    - name: Import role
+    - name: Import role aws_role_assume
       ansible.builtin.include_role:
         name: aws_role_assume
 
@@ -17,7 +17,7 @@
           The `assumed_role` variable is not defined or does not contain the required keys.
           Ensure the `aws_role_assume` role is executed successfully.
     
-    - name: Import role
+    - name: Import role aws_instance_info
       ansible.builtin.include_role:
         name: aws_instance_info
 
@@ -33,13 +33,17 @@
       ansible.builtin.set_fact:
         instance_id: "{{ metadata_values['instance-id'] }}"
     
-    - name: Import aws_tag_create tasks 
-      ansible.builtin.import_tasks: aws_tag_create.yml
-      when: aws_tag_create
+    - name: Include aws_tag_create tasks 
+      ansible.builtin.include_tasks: aws_tag_create.yml
+      when: aws_tag_create | default(false) | bool
 
-    - name: Import aws_tag_delete tasks 
-      ansible.builtin.import_tasks: aws_tag_delete.yml
-      when: aws_tag_create
+    - name: Include aws_tag_delete tasks 
+      ansible.builtin.include_tasks: aws_tag_delete.yml
+      when: aws_tag_delete | default(false) | bool
+
+    - name: Include aws_tag_delete tasks 
+      ansible.builtin.include_tasks: aws_tag_cleanup.yml
+      when: aws_tag_cleanup | default(false) | bool
 
   rescue:
     - name: Handle errors in the block
@@ -50,17 +54,3 @@
     - name: Cleanup or final tasks (if needed)
       ansible.builtin.debug:
         msg: "Block execution completed. Proceeding with cleanup or final tasks."
-  
-    - name: Get current instance tags
-      amazon.aws.ec2_instance_info:
-        instance_ids: "{{ instance_id }}"
-        region: "{{ aws_region | default('ap-southeast-2') }}"
-        access_key: "{{ assumed_role.sts_creds.access_key }}"
-        secret_key: "{{ assumed_role.sts_creds.secret_key }}"
-        session_token: "{{ assumed_role.sts_creds.session_token }}"
-      register: instance_info
-      delegate_to: localhost
-
-    - name: Show the Tags
-      ansible.builtin.debug: 
-        var: instance_info.instances[0].tags

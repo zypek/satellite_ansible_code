@@ -13,8 +13,8 @@
       tags: aws_tag_management
     - role: aws_tag_create
       tags: aws_tag_create
-    - role: satellite_tag_create
-      tags: satellite_tag_create
+    - role: create_satellite_tag_values
+      tags: create_satellite_tag_values
     - role: aws_tag_delete
       tags: aws_tag_delete
     - role: server_snapshot

@@ -40,10 +40,6 @@
           version: "{{ component_version }}"
           published_date: "{{ component_cvv.published_at_words | default('Date not available') }}"
     
-    - name: Show composite CV structure
-      ansible.builtin.debug:
-        var: cv_comp
-    
     - name: Create an update tag summary string from composite CV
       ansible.builtin.set_fact:
         update_summary: >-
@@ -55,8 +51,8 @@
     
     - name: Create tag key and value facts
       ansible.builtin.set_fact:
-        tag_key_value: "Server_update_{{ instance_id }}_{{ ansible_date_time.epoch }}"
-        tag_value: "{{ update_summary }}"
+        aws_tag_key_value: "Server_update_{{ instance_id }}_{{ ansible_date_time.epoch }}"
+        aws_tag_value: "{{ update_summary }}"
 
   rescue:
     - name: Handle errors in the block

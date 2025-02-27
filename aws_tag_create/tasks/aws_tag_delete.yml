@@ -1,0 +1,54 @@
+---
+- name: Assume AWS Role and Manage Instance Tags
+  block:
+    - name: Get current instance tags
+      amazon.aws.ec2_instance_info:
+        instance_ids: "{{ instance_id }}"
+        region: "{{ aws_region | default('ap-southeast-2') }}"
+        access_key: "{{ assumed_role.sts_creds.access_key }}"
+        secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+        session_token: "{{ assumed_role.sts_creds.session_token }}"
+      register: instance_info
+      delegate_to: localhost
+    
+    - name: Extract Server_update_* tags as a sorted list (latest first)
+      ansible.builtin.set_fact:
+        server_update_tags: >-
+          {{
+             instance_info.instances[0].tags
+             | dict2items
+             | selectattr('key', 'match', '^' ~ tag_key_value ~ '_')
+             | sort(attribute='key', reverse=true)
+             | list
+          }}
+    
+    - name: Determine keys to keep (the two latest tags)
+      ansible.builtin.set_fact:
+        keep_keys: "{{ (server_update_tags | map(attribute='key') | list)[0:2] }}"
+    
+    - name: Build a dictionary of old tags to remove (all except the two we keep)
+      ansible.builtin.set_fact:
+        cleanup_tags: "{{ cleanup_tags | default({}) | combine({ item.key: item.value }) }}"
+      loop: "{{ server_update_tags | rejectattr('key', 'in', keep_keys) | list }}"
+    
+    - name: Remove old Server_update_* tags (leaving the two latest)
+      amazon.aws.ec2_tag:
+        resource: "{{ instance_id }}"
+        region: "{{ aws_region | default('ap-southeast-2') }}"
+        state: absent
+        tags: "{{ cleanup_tags }}"
+        access_key: "{{ assumed_role.sts_creds.access_key }}"
+        secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+        session_token: "{{ assumed_role.sts_creds.session_token }}"
+      delegate_to: localhost
+      when: (cleanup_tags | default([])) | length > 0
+
+  rescue:
+    - name: Handle errors in the block
+      ansible.builtin.fail:
+        msg: "An error occurred during AWS role assumption or tag management. Details: {{ ansible_failed_result.msg }}"
+
+  always:
+    - name: Cleanup or final tasks (if needed)
+      ansible.builtin.debug:
+        msg: "Block execution completed. Proceeding with cleanup or final tasks."

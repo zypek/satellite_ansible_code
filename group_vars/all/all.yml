@@ -48,8 +48,9 @@ aws_role: AcoeCICDRole
 aws_account_no: 273354650151
 
 # Variables for the Tags
-tag_value: "Summary To Add to the Tag's value Something"
-tag_key_value: "Server_Name_Update"
+aws_tag_key_value: "Server_Name_Update"
+aws_tag_value: 
+aws_tag_key_cleanup: Server_update_
 
 # Instance Info
 metadata_paths: 
