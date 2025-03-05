@@ -23,11 +23,40 @@ sat_errata_filter_name: "filter-security-bugfix"
 sat_errata_end_date: "2025-02-05"
 
 # Variables for satellite_upload role
-satellite_product: "AWS"
-satellite_repository: "aws-cloudwatch-repo"
-package_url: "https://amazoncloudwatch-agent.s3.amazonaws.com/amazon_linux/amd64/latest/{{ package_name }}"
-package_tmp: "/tmp"
-package_name: "amazon-cloudwatch-agent.rpm"
+sat_dictionary:
+      products:
+        - name: AWS
+          repositories:
+            - name: aws-cloudwatch-repo
+              package_name: amazon-cloudwatch-agent.rpm
+              package_url: "https://amazoncloudwatch-agent.s3.amazonaws.com/redhat/amd64/latest"
+            - name: aws-ssm
+              package_name: amazon-ssm-agent.rpm
+              package_url: "https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64"
+            - name: aws-cli
+              package_name: awscli-exe-linux-x86_64.zip
+              package_url: "https://awscli.amazonaws.com"
+#        - name: Tanium
+#          repositories:
+#            - name: tanium-rhel8-repo
+#              package_name: tanium.rpm
+#              package_url: "https://artifactory.com/"
+# 	- name: Flexera
+#          repositories:
+#            - name: fnms-rhel8-repo
+#              package_name: fnms.rpm
+#              package_url: "https://artifactory.com/"
+#	- name: Splunk
+#          repositories:
+#            - name: splunk-rhel8-repo
+#              package_name: splunk.rpm
+#              package_url: "https://artifactory.com/"
+
+#satellite_product: "AWS"
+#satellite_repository: "aws-cloudwatch-repo"
+#package_url: "https://amazoncloudwatch-agent.s3.amazonaws.com/amazon_linux/amd64/latest/{{ package_name }}"
+sat_package_tmp: "/tmp"
+#package_name: "amazon-cloudwatch-agent.rpm"
 #Variables for cluster_update role
 fence_resource_name: "fence_resource"
 hana_pcs_resource: "sap_hana-clone"

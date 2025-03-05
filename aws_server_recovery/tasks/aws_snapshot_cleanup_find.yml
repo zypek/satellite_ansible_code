@@ -10,10 +10,19 @@
   register: snap_info
   delegate_to: localhost
 
+- name: Filter snapshots with description starting with "Snapshot for volume"
+  ansible.builtin.set_fact:
+    filtered_snapshots: >-
+      {{
+        snap_info.snapshots
+        | selectattr('description', 'defined')
+        | selectattr('description', 'match', '^Snapshot for volume')
+        | list
+      }}
+
 - name: Calculate one week ago in ISO format
   ansible.builtin.set_fact:
     one_week_ago: "{{ '%Y%m%dT%H%M%S.%fZ' | strftime(ansible_date_time.epoch | int - 604800) }}"
-
 
 - name: Debug one_week_ago
   ansible.builtin.debug:
@@ -23,7 +32,7 @@
   ansible.builtin.set_fact:
     old_snapshots: >-
       {{
-        snap_info.snapshots
+        filtered_snapshots
         | selectattr('start_time', 'string')
         | selectattr('start_time', '<=', one_week_ago)
         | list
@@ -33,7 +42,7 @@
   ansible.builtin.set_fact:
     latest_snapshot: >-
       {{
-        snap_info.snapshots
+        filtered_snapshots
         | sort(attribute='start_time', reverse=False)
         | last
       }}
@@ -55,7 +64,7 @@
   ansible.builtin.set_fact:
     remove_list: >-
       {{
-        snap_info.snapshots
+        filtered_snapshots
         | difference([latest_snapshot, newest_old_snapshot])
         | map(attribute='snapshot_id')
         | list
@@ -66,7 +75,7 @@
   ansible.builtin.debug:
     msg:
       - "Volume: {{ current_volume_id }}"
-      - "All snapshots: {{ snap_info.snapshots | map(attribute='snapshot_id') | list }}"
+      - "All snapshots: {{ filtered_snapshots | map(attribute='snapshot_id') | list }}"
       - "Latest overall snapshot: {{ latest_snapshot.snapshot_id if latest_snapshot else 'None' }}"
       - "Newest old snapshot: {{ newest_old_snapshot.snapshot_id if newest_old_snapshot else 'None' }}"
       - "Removing: {{ remove_list }}"

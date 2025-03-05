@@ -1,0 +1,21 @@
+- name: Example Playbook
+  hosts: localhost
+  vars:
+    sat_dictionary:
+      - Product_Name: AWS
+        Repositories:
+          - Repo_Name: aws-cli
+            Package_name: awscli-exe-linux-x86_64.zip
+          - Repo_Name: aws-ssm
+            Package_name: amazon-ssm-agent
+          - Repo_Name: aws-cloudwatch-repo
+            Package_name: amazon-cloudwatch-agent
+      - Product_Name: Calyptia
+        Repositories:
+          - Repo_Name: calyptia
+            Package_name: calyptia.rpm
+
+  tasks:
+    - name: Debug sat_dictionary
+      ansible.builtin.debug:
+        var: sat_dictionary['Product_Name']

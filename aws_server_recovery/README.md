@@ -81,6 +81,7 @@ With the role configured as below, the ansible will connect to the remote host, 
 ---
 - name: Manage AWS Snapshots
   hosts: all
+  gather_facts: true
   become: false
   roles:
     - role: aws_snapshot_management

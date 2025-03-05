@@ -1,0 +1,30 @@
+---
+- hosts: localhost
+  gather_facts: false
+  
+  vars:
+    items:
+      - alpha
+      - beta
+      - gamma
+
+  tasks:
+    - name: "Loop over items in a block"
+      block:
+        - name: "Debug current item"
+          debug:
+            msg: "Processing item: {{ item }}"
+
+        - name: "Intentionally fail on item=beta"
+          fail:
+            msg: "This is a simulated failure on item=beta."
+          when: item == "beta"
+
+      loop: "{{ items }}"
+      loop_control:
+        label: "{{ item }}"   # Show 'alpha', 'beta', 'gamma' in logs instead of 'item'
+      rescue:
+        - name: "Rescue block"
+          debug:
+            msg: "We recovered from failure for item='{{ item }}' but continuing the loop."
+

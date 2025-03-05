@@ -11,24 +11,24 @@
         session_token: "{{ assumed_role.sts_creds.session_token }}"
       register: instance_info
       delegate_to: localhost
-    
+
     - name: Extract root device name
       ansible.builtin.set_fact:
         root_device_name: "{{ instance_info.instances[0].root_device_name }}"
-    
+
     - name: Extract all attached volumes
       ansible.builtin.set_fact:
         block_device_mappings: "{{ instance_info.instances[0].block_device_mappings }}"
-    
+
     - name: Debug attached volumes
       ansible.builtin.debug:
         var: block_device_mappings
-    
+ 
     # Initialize block_device_snapshots as an empty list
     - name: Initialize block_device_snapshots
       ansible.builtin.set_fact:
         block_device_snapshots: []
-    
+
     # Find the Latest Snapshot for Each Volume
     - name: Find latest snapshot for each volume
       amazon.aws.ec2_snapshot_info:
@@ -42,7 +42,7 @@
       register: volume_snapshots
       loop: "{{ block_device_mappings }}"
       delegate_to: localhost
-    
+
     - name: Set facts for latest snapshots
       ansible.builtin.set_fact:
         block_device_snapshots: >-
@@ -53,21 +53,21 @@
           }] }}
       loop: "{{ volume_snapshots.results }}"
       when: item.snapshots | length > 0
-    
+
     - name: Fail if any volume has no snapshot
       ansible.builtin.fail:
         msg: "No snapshots found for one of the volumes"
       when: block_device_snapshots is not defined or block_device_snapshots | length == 0
-    
+
     - name: Debug snapshot information
       ansible.builtin.debug:
         var: block_device_snapshots
-    
+ 
     # Initialize block_device_new_volumes as an empty list
     - name: Initialize block_device_new_volumes
       ansible.builtin.set_fact:
         block_device_new_volumes: []
-    
+ 
     # Create New Volumes from Snapshots
     - name: Create new volumes from snapshots
       amazon.aws.ec2_vol:
@@ -81,7 +81,7 @@
       register: new_volumes
       loop: "{{ block_device_snapshots }}"
       delegate_to: localhost
-    
+
     - name: Set facts for new volumes
       ansible.builtin.set_fact:
         block_device_new_volumes: "{{ block_device_new_volumes + [{
