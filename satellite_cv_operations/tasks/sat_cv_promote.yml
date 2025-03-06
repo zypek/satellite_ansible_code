@@ -1,21 +1,61 @@
 ---
 - name: "Publish and Promote {{ satellite_content_view }} for {{ satellite_deployment_server.split('/')[2] }}"
   block:
-    - name: "Publish and Promote {{ satellite_content_view }} for {{ satellite_deployment_server.split('/')[2] }}"
+    - name: "Check The CV version"
+      redhat.satellite.content_view_info:
+        username: "{{ satellite_deployment_admin_username }}"
+        password: "{{ satellite_deployment_admin_password }}"
+        server_url: "{{ satellite_deployment_server }}"
+        name: "{{ item }}"
+        validate_certs: false
+        organization: "{{ satellite_deployment_organization }}"
+      register: sat_ccv_version
+      when: sat_cv_promote|default(false)
+      loop: "{{ satellite_content_views }}" 
+
+    - name: Check
+      debug: 
+        var: sat_ccv_version
+
+    - name: Set facts for CV version
+      ansible.builtin.set_fact:
+        sat_cv_version: "{{ sat_ccv_version['content_view']['latest_version'] }}"
+      when: sat_cv_promote|default(false)
+
+    - name: "Publish {{ satellite_content_view }} for {{ satellite_deployment_server.split('/')[2] }}"
       redhat.satellite.content_view_version:
         username: "{{ satellite_deployment_admin_username }}"
         password: "{{ satellite_deployment_admin_password }}"
         server_url: "{{ satellite_deployment_server }}"
-        content_view: "{{ satellite_content_view }}"
+        content_view: "{{ item }}"
         organization: "{{ satellite_deployment_organization }}"
         validate_certs: false
-        lifecycle_environments: "{{ satellite_lifecycle }}"
+        lifecycle_environments: Library
       register: publish_result
       retries: 3
       delay: 300
       until: publish_result is success
+      when: sat_cv_publish|default(false)
+      loop: "{{ satellite_content_views }}" 
+ 
+    - name: "Promote {{ satellite_content_view }} for {{ satellite_deployment_server.split('/')[2] }}"
+      redhat.satellite.content_view_version:
+        username: "{{ satellite_deployment_admin_username }}"
+        password: "{{ satellite_deployment_admin_password }}"
+        server_url: "{{ satellite_deployment_server }}"
+        content_view: "{{ item }}"
+        organization: "{{ satellite_deployment_organization }}"
+        validate_certs: false
+        lifecycle_environments: "{{ satellite_lifecycle }}"
+        version: "{{ sat_cv_version }}"
+      register: promote_result
+      retries: 3
+      delay: 300
+      until: promote_result is success
+      when: sat_cv_promote|default(false)
+      loop: "{{ satellite_content_views }}" 
  
     - name: Fail if CV Publish/Promote failed
       ansible.builtin.fail:
         msg: "Failed to promote {{ satellite_content_view }} after 3 retries."
-      when: publish_result is failed
+      when: ( publish_result is failed ) or ( promote_result is failed )

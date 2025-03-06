@@ -1,87 +1,121 @@
-Role Name
-=========
+Satellite CV Operations
+=======================
 
-# satellite_content_view
+# satellite_cv_operations
 
 ## Description
 ------------
-This Ansible role publishes and promotes a specified Satellite Content View through one or more lifecycle environments on a Red Hat Satellite/Foreman instance. It uses the [theforeman.foreman](https://galaxy.ansible.com/theforeman/foreman) collection to manage the lifecycle and version of a given Content View.
+This Ansible role manages content view operations for Red Hat Satellite. It supports publishing and promoting content views, managing errata inclusion based on dates, and performing clean-up of unused content view versions.
 
 ## Requirements
 ------------
 The following Ansible collections are required:
 
-- `theforeman.foreman`
 - `redhat.satellite`
-- `redhat.satellite_operations`
 - `ansible.builtin`
 
-Additionally, the user/system must have:
-- Valid credentials to authenticate against the Satellite/Foreman server.
-- The target Content View (`satellite_content_view`) must exist.
+The target system must have:
+- Red Hat Satellite configured and accessible.
+- Proper user credentials and permissions to manage Satellite resources.
 
 ## Role Variables
 --------------
-| Variable Name                          | Description                                                     | Default Value | Type   |
-|---------------------------------------|-----------------------------------------------------------------|--------------|--------|
-| `satellite_deployment_admin_username` | Username with sufficient rights to manage Content Views         | None         | String |
-| `satellite_deployment_admin_password` | Password for the above user                                    | None         | String |
-| `satellite_deployment_server`         | The Satellite/Foreman server URL                                | None         | String |
-| `satellite_content_view`              | Name of the Content View to be published and promoted           | None         | String |
-| `satellite_deployment_organization`   | The organisation where the Content View resides                | None         | String |
-| `satellite_lifecycle`                 | A list of lifecycle environments to which the CV is promoted    | None         | List   |
-
-> **Note:** `validate_certs` is set to `false` in the example. If your Satellite/Foreman server uses valid certificates, set `validate_certs: true` for secure communication.
+| Variable Name                                | Description                                                        | Default Value | Type   |
+|----------------------------------------------|--------------------------------------------------------------------|---------------|--------|
+| `satellite_deployment_admin_username`        | Satellite administrative username                                  | None          | String |
+| `satellite_deployment_admin_password`        | Satellite administrative password                                  | None          | String |
+| `satellite_deployment_server`                | Satellite server URL                                               | None          | String |
+| `satellite_deployment_organization`          | Satellite organization                                             | None          | String |
+| `satellite_content_views`                    | List of content views to manage                                    | None          | List   |
+| `satellite_content_view`                     | Specific content view name                                         | None          | String |
+| `sat_cv_publish`                             | Flag to trigger content view publishing                            | `false`       | Bool   |
+| `sat_cv_promote`                             | Flag to trigger content view promotion                             | `false`       | Bool   |
+| `satellite_lifecycle`                        | Lifecycle environment for promotion                                | None          | String |
+| `sat_cv_filter_errata`                       | Flag to trigger errata filtering                                   | `false`       | Bool   |
+| `sat_errata_filter_name`                     | Name of the errata filter to apply                                 | None          | String |
+| `sat_errata_end_date`                        | End date for errata inclusion                                      | Current Date  | String |
+| `sat_cv_ver_cleanup`                         | Flag to trigger content view version cleanup                       | `false`       | Bool   |
+| `satellite_content_view_version_cleanup_keep`| Number of CV versions to retain during cleanup                     | 0             | Int    |
 
 ## Dependencies
 ------------
-This role assumes:
-- Theforeman/Foreman modules are available (via `theforeman.foreman` collection).
-- The specified Content View and lifecycle environments exist.
+This role requires:
+- Red Hat Satellite server access and appropriate API credentials.
 
-## Example Playbook
+## Examples
 ----------------
+Below are examples of how to use this role:
 
-### Using the role directly
+### Publish and Promote Content View
+
+Publishes and promotes specified content views to a lifecycle environment.
+
+**Example Code:**
+
 ```yaml
 ---
-- name: Publish and Promote a Satellite Content View
+- name: Satellite CV Operations
   hosts: all
   become: false
   roles:
-    - role: satellite_content_view
+    - role: satellite_cv_operations
       vars:
         satellite_deployment_admin_username: "admin"
-        satellite_deployment_admin_password: "redhat"
+        satellite_deployment_admin_password: "password"
         satellite_deployment_server: "https://satellite.example.com"
-        satellite_content_view: "rhel8_comp_cv"
-        satellite_deployment_organization: "sap"
-        satellite_lifecycle:
-          - "Build"
-          - "NonProd"
-          - "PreProd"
-          - "Prod"
-      tags: satellite_content_view
+        satellite_deployment_organization: "Example Org"
+        satellite_content_views:
+          - "RHEL_Base"
+        satellite_content_view: "RHEL_Base"
+        sat_cv_publish: true
+        sat_cv_promote: true
+        satellite_lifecycle: "Production"
 ```
 
-Alternatively: 
+### Filter Errata by Date
+
+Filters errata by date and applies to a specific content view.
+
+**Example Code:**
 
 ```yaml
 ---
-- hosts: servers
-  tasks:
-    - name: Publish and Promote the Content View
-      ansible.builtin.include_role:
-        name: cba.cbc_sap_os_config.satellite_content_view
+- name: Satellite CV Operations
+  hosts: all
+  become: false
+  roles:
+    - role: satellite_cv_operations
       vars:
         satellite_deployment_admin_username: "admin"
-        satellite_deployment_admin_password: "redhat"
+        satellite_deployment_admin_password: "password"
         satellite_deployment_server: "https://satellite.example.com"
-        satellite_content_view: "rhel8_comp_cv"
-        satellite_deployment_organization: "sap"
-        satellite_lifecycle:
-          - "Build"
-          - "NonProd"
-          - "PreProd"
-          - "Prod"
+        satellite_deployment_organization: "Example Org"
+        satellite_sap_content_view: "RHEL_SAP"
+        sat_cv_filter_errata: true
+        sat_errata_filter_name: "filter-security-bugfix"
+        sat_errata_end_date: "2024-12-31"
+```
+
+### Cleanup Unused CV Versions
+
+Removes unused content view versions beyond a specified retention number.
+
+**Example Code:**
+
+```yaml
+---
+- name: Satellite CV Operations
+  hosts: all
+  become: false
+  roles:
+    - role: satellite_cv_operations
+      vars:
+        satellite_deployment_admin_username: "admin"
+        satellite_deployment_admin_password: "password"
+        satellite_deployment_server: "https://satellite.example.com"
+        satellite_deployment_organization: "Example Org"
+        sat_cv_ver_cleanup: true
+        satellite_content_view_version_cleanup_keep: 3
+```
+
 

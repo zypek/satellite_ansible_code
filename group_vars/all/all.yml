@@ -10,8 +10,10 @@ update_system_services_list:
 satellite_deployment_organization: 'RedHat'
 satellite_deployment_admin_username: 'admin'
 satellite_deployment_admin_password: redhat123
-satellite_lifecycle: [NonProd, PreProd, Prod]
-satellite_content_view: CV-Comp
+#satellite_lifecycle: [NonProd, PreProd, Prod]
+satellite_lifecycle: [NonProd, PreProd]
+#satellite_content_view: CV-Comp
+satellite_content_views: [CV-AWS,CV-Calyptia,CV-Microsoft,CV-Comp]
 satellite_sap_content_view: CV-RHEL8
 satellite_deployment_server: "https://rhsatellite.example.org"
 satellite_kat_cert: "katello-ca-consumer-latest.noarch.rpm"
@@ -23,6 +25,7 @@ sat_errata_filter_name: "filter-security-bugfix"
 sat_errata_end_date: "2025-02-05"
 
 # Variables for satellite_upload role
+sat_package_tmp: "/tmp"
 sat_dictionary:
       products:
         - name: AWS
@@ -55,7 +58,6 @@ sat_dictionary:
 #satellite_product: "AWS"
 #satellite_repository: "aws-cloudwatch-repo"
 #package_url: "https://amazoncloudwatch-agent.s3.amazonaws.com/amazon_linux/amd64/latest/{{ package_name }}"
-sat_package_tmp: "/tmp"
 #package_name: "amazon-cloudwatch-agent.rpm"
 #Variables for cluster_update role
 fence_resource_name: "fence_resource"

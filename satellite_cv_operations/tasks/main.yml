@@ -11,7 +11,7 @@
 
     - name: Include sat_cv_promote tasks
       ansible.builtin.include_tasks: sat_cv_promote.yml
-      when: sat_cv_promote | default(false) | bool
+      when: ( sat_cv_publish | default(false) | bool ) or ( sat_cv_promote | default(false) | bool )
 
     - name: Include sat_cv_ver_cleanup tasks
       ansible.builtin.include_tasks: sat_cv_ver_cleanup.yml
