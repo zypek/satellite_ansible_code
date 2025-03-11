@@ -3,6 +3,8 @@
   hosts: all
   become: true
   roles:
+    - role: node_space_check
+      tags: node_space_check
     - role: aws_instance_info
       tags: aws_instance_info
     - role: cluster_node_stop

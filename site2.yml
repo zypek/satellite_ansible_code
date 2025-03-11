@@ -1,6 +1,6 @@
 ---
 - name: Update RHEL Servers
-  hosts: localhost
+  hosts: all
   become: true
   roles:
-    - role: satellite_upload
+    - role: node_space_check
