@@ -1,0 +1,90 @@
+---
+- name: Set Node into Standby mode
+  block:
+    - name: Run crm_node -l to get cluster node list
+      ansible.builtin.command: crm_node -l
+      register: crm_node_output
+    
+    - name: Parse crm_node -l output into a list
+      ansible.builtin.set_fact:
+        cluster_nodes: "{{ crm_node_output.stdout_lines | map('regex_replace', '^\\d+\\s+(\\S+)\\s+.*', '\\1') | list }}"
+      when: crm_node_output.rc == 0 
+
+    - name: Find and set the current Cluster Name
+      ansible.builtin.command: crm_node -n
+      register: cluster_node_name
+
+    - name: Set the current_cluster_name var
+      ansible.builtin.set_fact:
+        current_cluster_name: "{{ cluster_node_name['stdout'] }}"
+
+    - name: Check if current hostname is in the cluster node list
+      ansible.builtin.set_fact:
+        is_cluster_member: "{{ current_cluster_name in cluster_nodes }}"
+      when: crm_node_output.rc == 0 
+    
+    - name: Fail if current host is not a cluster member
+      ansible.builtin.fail:
+        msg: "Host {{ current_cluster_name }} is not a member of the cluster."
+      when: not is_cluster_member
+    
+    - name: Get the cluster properties
+      ansible.builtin.command: pcs property
+      register: pcs_property_result
+      changed_when: false
+      failed_when: pcs_property_result.rc != 0
+
+    - name: Set fact for maintenance mode status
+      ansible.builtin.set_fact:
+        maintenance_mode_enabled: >-
+          {{ 'maintenance-mode: true' in pcs_property_result.stdout }}
+
+    - name: Debug maintenance mode status
+      ansible.builtin.debug:
+        msg: "Maintenance mode is {{ (maintenance_mode_enabled | bool) | ternary('enabled', 'disabled') }}"
+
+    - name: Set the Maintenance mode on the cluster
+      ansible.builtin.command: pcs property set maintenance-mode=true
+      register: pcs_property_maint_result
+      changed_when: false
+      failed_when: pcs_property_maint_result.rc != 0
+      when: 
+        - not maintenance_mode_enabled 
+        - enable_maintenance_mode | default(false) | bool
+
+    - name: Unset the Maintenance mode on the cluster
+      ansible.builtin.command: pcs property set maintenance-mode=false
+      register: pcs_property_maint_result
+      changed_when: false
+      failed_when: pcs_property_maint_result.rc != 0
+      when: 
+        - maintenance_mode_enabled 
+        - disable_maintenance_mode | default(false) | bool
+
+    - name: Get the cluster properties after the maintenace-mode set to true
+      ansible.builtin.command: pcs property
+      register: pcs_property_result
+      changed_when: false
+      failed_when: pcs_property_result.rc != 0
+
+    - name: Set fact for maintenance mode status
+      ansible.builtin.set_fact:
+        maintenance_mode_enabled: >-
+          {{ 'maintenance-mode: true' in pcs_property_result.stdout }}
+
+    - name: Assert the maintenance mode has been successfully set
+      ansible.builtin.assert:
+        that: maintenance_mode_enabled
+        fail_msg: Cluster Maintenance Mode has not been successfully Set
+        success_msg: Cluster Maintenance Mode has been successfully Set
+      when: 
+        - enable_maintenance_mode | default(false) | bool
+
+    - name: Assert the maintenance mode has been successfully unset
+      ansible.builtin.assert:
+        that: not maintenance_mode_enabled
+        fail_msg: Cluster Maintenance Mode has not been successfully unset
+        success_msg: Cluster Maintenance Mode has been successfully unset
+      when: 
+        - disable_maintenance_mode | default(false) | bool
+

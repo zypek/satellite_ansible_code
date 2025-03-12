@@ -25,6 +25,10 @@
       ansible.builtin.include_tasks: cluster_node_unstandby.yml
       when: cluster_node_unstandby | default(false) | bool
 
+    - name: Include cluster_maintenance tasks
+      ansible.builtin.include_tasks: cluster_maintenance.yml
+      when: cluster_maintenance | default(false) | bool
+
   rescue:
     - name: Handle errors in the block
       ansible.builtin.fail:
