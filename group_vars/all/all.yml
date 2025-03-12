@@ -69,6 +69,10 @@ ha_system_services_list:
 system_services_list:
       - pacemaker
       - corosync
+srv_check_system_services_list:
+      - pacemaker
+      - corosync
+      - sshd
 # Variables for cluster_backup role
 cluster_backup_dir: '/tmp'
 # Variables for server_restore role

@@ -29,6 +29,10 @@
       ansible.builtin.include_tasks: cluster_maintenance.yml
       when: cluster_maintenance | default(false) | bool
 
+    - name: Include node_srv_check tasks
+      ansible.builtin.include_tasks: node_srv_check.yml
+      when: node_srv_check | default(false) | bool
+
   rescue:
     - name: Handle errors in the block
       ansible.builtin.fail:

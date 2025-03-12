@@ -1,0 +1,33 @@
+---
+- name: Verify Running Services
+  block:
+    - name: Gather facts (including hostname)
+      ansible.builtin.setup:
+    
+    - name: Wait for all services to start
+      ansible.builtin.service_facts:
+      register: service_facts_result
+      retries: 5
+      delay: 10
+      until: >-
+        srv_check_system_services_list |
+        map('regex_replace', '$', '.service') |
+        select('in', service_facts_result.ansible_facts.services.keys()) |
+        map('extract', service_facts_result.ansible_facts.services) |
+        map(attribute='state') |
+        select('eq', 'running') |
+        list | length == srv_check_system_services_list | length
+ 
+
+    - name: Verify if all services are started
+      ansible.builtin.assert:
+        that: >-
+          srv_check_system_services_list |
+          map('regex_replace', '$', '.service') |
+          select('in', service_facts_result.ansible_facts.services.keys()) |
+          map('extract', service_facts_result.ansible_facts.services) |
+          map(attribute='state') |
+          select('eq', 'running') |
+          list | length == srv_check_system_services_list | length
+        fail_msg: "Some services are not running"
+        success_msg: "All services are running."
