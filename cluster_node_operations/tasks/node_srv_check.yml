@@ -1,6 +1,14 @@
 ---
 - name: Verify Running Services
   block:
+    - name: Verify srv_check_system_services_list is defined
+      ansible.builtin.assert:
+        that:
+          - srv_check_system_services_list is defined
+          - srv_check_system_services_list | length > 0
+        fail_msg: >
+          The `srv_check_system_services_list` list is not defined or does not contain any data.
+
     - name: Gather facts (including hostname)
       ansible.builtin.setup:
     
