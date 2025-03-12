@@ -28,6 +28,8 @@ The target system must have:
 | `cluster_node_unstandby` | Remove the current node from standby mode            | `false`       | Bool   |
 | `cluster_node_stop`      | Stop cluster services on the current node            | `false`       | Bool   |
 | `cluster_node_start`     | Start cluster services on the current node           | `false`       | Bool   |
+| `disable_maintenance_mode`| Unset maintenance mode on a cluster                 | `false`       | Bool   |
+| `enable_maintenance_mode`| Set maintenance mode on a cluster                    | `false`       | Bool   |
 | `hana_pcs_resource`      | HANA resource identifier in Pacemaker                | None          | String |
 | `fence_resource_name`    | Fencing resource name                                | None          | String |
 | `ha_system_services_list`| List of HA services to validate running status       | None          | List   |
@@ -159,4 +161,38 @@ Starts all cluster-related services on the current node.
           - corosync
 ```
 
+### Enable Maintenance Mode on a Cluster
 
+Sets the maintenance-mode to true
+
+**Example Code:**
+
+```yaml
+---
+- name: Cluster Operations
+  hosts: all
+  become: true
+  roles:
+    - role: cluster_node_operations
+      vars:
+        cluster_maintenance: true 
+        enable_maintenance_mode: true
+```
+
+### Disable Maintenance Mode on a Cluster
+
+Sets the maintenance-mode to false
+
+**Example Code:**
+
+```yaml
+---
+- name: Cluster Operations
+  hosts: all
+  become: true
+  roles:
+    - role: cluster_node_operations
+      vars:
+        cluster_maintenance: true 
+        disable_maintenance_mode: true
+```
