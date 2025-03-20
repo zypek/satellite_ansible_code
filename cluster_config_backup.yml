@@ -1,0 +1,9 @@
+---
+- name: Update RHEL Servers
+  hosts: all
+  become: true
+  vars:
+    cluster_backup: true
+    enable_backup_dir: /tmp
+  roles:
+    - role: cluster_node_operations

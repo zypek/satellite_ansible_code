@@ -1,0 +1,95 @@
+---
+- name: Execute server reboot in a block with error handling
+  block:
+    - name: Initiate server reboot
+      ansible.builtin.reboot:
+        reboot_timeout: "{{ reboot_timeout }}"
+        msg: "Reboot initiated by Ansible on {{ ansible_facts['hostname'] }}"
+      register: reboot_result
+
+    - name: Wait for server to come back online
+      ansible.builtin.wait_for_connection:
+        timeout: "{{ connection_timeout }}"
+        delay: 30
+      register: connection_result
+
+    - name: Log successful reboot
+      ansible.builtin.debug:
+        msg: "Reboot completed successfully on {{ ansible_facts['hostname'] }}"
+
+  rescue:
+    - name: Handle reboot failure
+      ansible.builtin.debug:
+        msg: "Reboot failed on {{ ansible_facts['hostname'] }}. Error: {{ reboot_result.msg | default('Unknown error') }}"
+
+    - name: Check if server is still reachable
+      ansible.builtin.ping:
+      register: ping_result
+      ignore_errors: yes
+
+    - name: Log detailed failure
+      ansible.builtin.debug:
+        msg: >-
+          Server {{ ansible_facts['hostname'] }} is
+          {% if ping_result.failed %}unreachable{% else %}reachable but reboot failed{% endif %}.
+          Check logs or investigate further.
+
+    - name: Import role aws_role_assume
+      ansible.builtin.include_role:
+        name: aws_role_assume
+
+    - name: Verify assumed_role is defined and contains required keys
+      ansible.builtin.assert:
+        that:
+          - assumed_role is defined
+          - assumed_role.sts_creds is defined
+          - assumed_role.sts_creds.access_key is defined
+          - assumed_role.sts_creds.secret_key is defined
+          - assumed_role.sts_creds.session_token is defined
+        fail_msg: >
+          The `assumed_role` variable is not defined or does not contain the required keys.
+          Ensure the `aws_role_assume` role is executed successfully.
+
+    - name: Import role aws_instance_info
+      ansible.builtin.include_role:
+        name: aws_instance_info
+
+    - name: Verify assumed_role is defined and contains required keys
+      ansible.builtin.assert:
+        that:
+          - metadata_values is defined
+        fail_msg: >
+          The `metadata_values` variable is not defined or does not contain the required keys.
+          Ensure the `aws_instance_info` role is executed successfully.
+
+    - name: Set Instance ID as Fact
+      ansible.builtin.set_fact:
+        instance_id: "{{ metadata_values['instance-id'] }}"
+
+    - name: Stop the instance
+      amazon.aws.ec2_instance:
+        region: "{{ aws_region }}"
+        instance_ids: "{{ instance_id }}"
+        state: restarted
+        access_key: "{{ assumed_role.sts_creds.access_key }}"
+        secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+        session_token: "{{ assumed_role.sts_creds.session_token }}"
+      delegate_to: localhost
+      when: restart_instance_on_failure | bool
+      register: stop_result
+
+    - name: Log AWS stop attempt
+      ansible.builtin.debug:
+        msg: >-
+          AWS stop attempt on {{ ansible_facts['hostname'] }}:
+          {% if stop_result.skipped %}Skipped (stop_instance_on_failure=false)
+          {% elif stop_result.failed %}Failed - {{ stop_result.msg }}
+          {% else %}Success{% endif %}
+      when: stop_instance_on_failure is defined
+
+  always:
+    - name: Ensure final status is logged
+      ansible.builtin.debug:
+        msg: >-
+          Reboot attempt on {{ ansible_facts['hostname'] }} completed.
+          Status: {% if reboot_result is success and connection_result is success %}Success{% else %}Failed{% endif %}

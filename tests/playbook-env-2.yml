@@ -1,0 +1,42 @@
+---
+- name: Update proxies with sexy Ansible moves
+  hosts: localhost
+  become: yes
+  vars:
+    new_proxy_server: "new-proxy:3128"
+    proxy_settings:
+      - path: "/etc/profile.d/100_enable_proxy.sh"
+        regexp: '^export http_proxy=.*$'
+        line: 'export http_proxy=http://{{ new_proxy_server }}'
+      - path: "/etc/systemd/system/amazon-ssm-agent.service.d/10_proxy.conf"
+        regexp: '^Environment="http_proxy=.*"$'
+        line: 'Environment="http_proxy=http://{{ new_proxy_server }}"'
+      - path: "/etc/systemd/system/amazon-ssm-agent.service.d/10_proxy.conf"
+        regexp: '^Environment="https_proxy=.*"$'
+        line: 'Environment="https_proxy=http://{{ new_proxy_server }}"'
+  tasks:
+    - name: Replace proxy settings in files
+      ansible.builtin.lineinfile:
+        path: "{{ item.path }}"
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+        state: present
+      loop: "{{ proxy_settings }}"
+      register: proxy_update
+
+    - name: Confirm proxy updates
+      ansible.builtin.debug:
+        msg: "Updated {{ item.item.path }}: {{ item.item.line }} applied!"
+      loop: "{{ proxy_update.results }}"
+      when: item.changed
+
+    - name: Reload systemd daemon if SSM proxy changed
+      ansible.builtin.systemd:
+        daemon_reload: yes
+      when: proxy_update.results | selectattr('item.path', 'equalto', '/etc/systemd/system/amazon-ssm-agent.service.d/10_proxy.conf') | selectattr('changed', 'equalto', true) | list | length > 0
+
+    - name: Restart SSM agent if changed
+      ansible.builtin.service:
+        name: amazon-ssm-agent
+        state: restarted
+      when: proxy_update.results | selectattr('item.path', 'equalto', '/etc/systemd/system/amazon-ssm-agent.service.d/10_proxy.conf') | selectattr('changed', 'equalto', true) | list | length > 0

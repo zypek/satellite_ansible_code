@@ -1,0 +1,56 @@
+---
+- name: Stop the AWS Instance
+  block:
+    - name: Import role
+      ansible.builtin.include_role:
+        name: cba.cbc_sap_os_config.aws_assume_role
+      
+    - name: Verify assumed_role is defined and contains required keys
+      ansible.builtin.assert:
+        that:
+          - assumed_role is defined
+          - assumed_role.sts_creds is defined
+          - assumed_role.sts_creds.access_key is defined
+          - assumed_role.sts_creds.secret_key is defined
+          - assumed_role.sts_creds.session_token is defined
+        fail_msg: >
+          The `assumed_role` variable is not defined or does not contain the required keys.
+          Ensure the `aws_role_assume` role is executed successfully.
+
+    - name: Verify all required keys are defined
+      ansible.builtin.assert:
+        that:
+          - hostvars[inventory_hostname].instance_id is defined
+          - region is defined
+          - hostvars[inventory_hostname].placement.availability_zone is defined
+        fail_msg: >
+          One of the variables is not defined or does not contain the required keys.
+
+    - name: Set Instance ID as Fact
+      ansible.builtin.set_fact:
+        instance_id: "{{ hostvars[inventory_hostname].instance_id }}"
+        aws_region: "{{ region }}"
+        availability_zone: "{{ hostvars[inventory_hostname].placement.availability_zone }}"
+
+    - name: Stop the instance
+      amazon.aws.ec2_instance:
+        region: "{{ aws_region }}"
+        instance_ids: "{{ instance_id }}"
+        state: stopped
+        access_key: "{{ assumed_role.sts_creds.access_key }}"
+        secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+        session_token: "{{ assumed_role.sts_creds.session_token }}"
+      delegate_to: localhost
+
+    - name: Wait for instance to stop
+      amazon.aws.ec2_instance_info:
+        region: "{{ aws_region }}"
+        instance_ids: "{{ instance_id }}"
+        access_key: "{{ assumed_role.sts_creds.access_key }}"
+        secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+        session_token: "{{ assumed_role.sts_creds.session_token }}"
+      register: instance_status
+      until: instance_status.instances[0].state.name == "stopped"
+      retries: 10
+      delay: 10
+      delegate_to: localhost

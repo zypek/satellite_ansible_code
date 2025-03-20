@@ -1,0 +1,37 @@
+---
+- name: Check File System Space
+  block:
+    - name: Check File System Space
+      ansible.builtin.command:
+        cmd: df -P --exclude-type=tmpfs --exclude-type=devtmpfs
+      register: df_output
+      changed_when: false
+      failed_when: false
+
+    - name: Parse File System Usage
+      ansible.builtin.set_fact:
+        full_filesystems: >-
+          {{
+            df_output.stdout_lines[1:] |
+            map('split', ' ') |
+            selectattr(4, 'match', '^([0-9]+)%$') |
+            map('extract', 4) |
+            map('regex_replace', '%', '') |
+            map('int') |
+            select('ge', 95) |
+            map('set_fact_dict', df_output.stdout_lines[1:], 5) |
+            list
+          }}
+
+    - name: Report Insufficient Space if Necessary
+      ansible.builtin.assert:
+        that: full_filesystems | length == 0
+        fail_msg: >-
+          The following file systems have less than 5% free space:
+          {{ full_filesystems | map('extract', 'mount') | join(', ') }}
+        success_msg: "All filesystems have more than 5% free space"
+
+  rescue:
+    - name: Handle errors in the block
+      ansible.builtin.fail:
+        msg: "An error occurred. Details: {{ ansible_failed_result.msg }}"

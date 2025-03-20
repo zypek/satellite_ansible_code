@@ -1,0 +1,29 @@
+---
+- name: Cluster Operations
+  block:
+    - name: Include node_srv_check tasks
+      ansible.builtin.include_tasks: node_srv_check.yml
+      when: node_srv_check | default(false) | bool
+
+    - name: Include node_space_check tasks
+      ansible.builtin.include_tasks: node_space_check.yml
+      when: node_space_check | default(false) | bool
+
+    - name: Include node_reboot tasks
+      ansible.builtin.include_tasks: node_reboot.yml
+      when: node_reboot | default(false) | bool
+
+  rescue:
+    - name: Handle errors in the block
+      ansible.builtin.fail:
+        msg: >
+          An error occurred while stopping the cluster.
+          Details: {{ ansible_failed_result.msg }}
+          Task: {{ ansible_failed_result.task }}
+
+  always:
+    - name: Log execution status
+      ansible.builtin.debug:
+        msg: >
+          Block execution completed with status: {{ 'Success' if ansible_failed_result is not defined else 'Failure' }}.
+          Details: {{ ansible_failed_result.msg | default('No errors') }}

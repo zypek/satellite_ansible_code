@@ -1,0 +1,27 @@
+---
+- name: Update HTTP proxy on RHEL
+  hosts: localhost  # Your RHEL hosts
+  become: yes
+  tasks:
+    - name: Replace HTTP proxy in /etc/environment
+      ansible.builtin.lineinfile:
+        path: /etc/environment
+        regexp: '^http_proxy=.*$'
+        line: 'http_proxy=http://proxy.example.com:8080'
+        state: present
+
+    - name: Replace HTTP proxy in /etc/environment
+      ansible.builtin.lineinfile:
+        path: /etc/environment
+        regexp: '^https_proxy=.*$'
+        line: 'https_proxy=https://proxy.example.com:8080'
+        state: present
+
+    - name: Debug the result
+      ansible.builtin.command: cat /etc/environment
+      register: env_output
+      changed_when: false
+
+    - name: Show updated environment
+      ansible.builtin.debug:
+        msg: "{{ env_output.stdout_lines }}"

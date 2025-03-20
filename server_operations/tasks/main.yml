@@ -1,0 +1,37 @@
+---
+- name: Server Operations
+  block:
+    - name: Include server_services_check tasks
+      ansible.builtin.include_tasks: server_services_check.yml
+      when: server_services_check | default(false) | bool
+
+    - name: Include server_space_check tasks
+      ansible.builtin.include_tasks: server_space_check.yml
+      when: server_space_check | default(false) | bool
+
+    - name: Include server_reboot tasks
+      ansible.builtin.include_tasks: server_reboot.yml
+      when: server_reboot | default(false) | bool
+
+    - name: Include instance_shutdown tasks
+      ansible.builtin.include_tasks: instance_shutdown.yml
+      when: instance_shutdown | default(false) | bool
+
+    - name: Include instance_start tasks
+      ansible.builtin.include_tasks: instance_start.yml
+      when: instance_start | default(false) | bool
+
+  rescue:
+    - name: Handle errors in the block
+      ansible.builtin.fail:
+        msg: >
+          An error occurred while performing server operations tasks.
+          Details: {{ ansible_failed_result.msg }}
+          Task: {{ ansible_failed_result.task }}
+
+  always:
+    - name: Log execution status
+      ansible.builtin.debug:
+        msg: >
+          Block execution completed with status: {{ 'Success' if ansible_failed_result is not defined else 'Failure' }}.
+          Details: {{ ansible_failed_result.msg | default('No errors') }}

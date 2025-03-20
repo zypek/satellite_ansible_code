@@ -1,0 +1,6 @@
+---
+# defaults file for cluster_update
+reboot_timeout: 600  # 10 min
+connection_timeout: 300  # 5 min
+restart_instance_on_failure: false  # Toggle this to true to enable AWS stop
+

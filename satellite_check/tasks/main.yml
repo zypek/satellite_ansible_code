@@ -10,8 +10,11 @@
       register: foreman_status
 
     - name: Show Server Status
-      ansible.builtin.debug:
-        msg: "Status of the Satellite is {{ foreman_status['status']['result'] }}"
+      ansible.builtin.assert:
+        that: 
+          - foreman_status.status.result == 'ok'
+        fail_msg: "Status of the Satellite is NOT {{ foreman_status['status']['result'] }}"
+        success_msg: "Status of the Satellite is {{ foreman_status['status']['result'] }}"
 
   rescue:
     - name: Handle Connectivity Failure
